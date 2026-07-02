@@ -204,7 +204,8 @@ I hope it's useful to you too.
 
 ## Philosophy
 
-Inspired by a desire for a new internet, Field is built on the belief that your visual thinking deserves a quiet, personal space. Not a feed, not a social network, not a product that monetizes your attention. 
+Inspired by a desire for a new internet, Field is built on the belief that your visual thinking deserves a quiet, personal space. Not a feed, not a social network, not a product that monetizes your attention.
+
 ---
 
 ## License
