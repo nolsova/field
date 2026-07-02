@@ -1,0 +1,15 @@
+name = "field"
+compatibility_date = "2026-06-01"
+pages_build_output_dir = "public"
+
+# R2 bucket binding — this is how functions/api/upload.js and
+# functions/api/file/[key].js access env.IMAGES_BUCKET
+[[r2_buckets]]
+binding = "IMAGES_BUCKET"
+bucket_name = "moodboard-images"
+
+# D1 database binding — this is how functions access env.DB
+[[d1_databases]]
+binding = "DB"
+database_name = "moodboard-db"
+database_id = "e0f4fa10-e091-4fbc-80a4-0f31090cc361"

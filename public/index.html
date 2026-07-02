@@ -1,0 +1,2075 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>field</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+  :root {
+    --bg: #0c0c0d;
+    --bg-elevated: #161617;
+    --text: #e8e6e1;
+    --text-dim: #8a8884;
+    --accent: #d4cfc4;
+    --danger: #d4736a;
+    --border: rgba(255,255,255,0.08);
+    --gap: 4px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  header {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: rgba(12,12,13,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* On small screens, tighten the header gaps so nothing gets cut off */
+  @media (max-width: 420px) {
+    header { gap: 6px; padding: 10px 10px; }
+    .filter-btn { padding: 5px 8px; font-size: 12px; }
+    .logo { font-size: 11px; }
+    .icon-btn { width: 28px; height: 28px; font-size: 16px; }
+  }
+
+  .logo { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
+
+  .filter-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .filter-btn.has-active { border-color: var(--accent); color: var(--accent); }
+
+  .filter-count {
+    background: var(--accent);
+    color: var(--bg);
+    border-radius: 100px;
+    font-size: 10px;
+    padding: 1px 6px;
+    font-weight: 600;
+  }
+
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .icon-btn:hover { border-color: var(--accent); }
+
+  .spacer { margin-left: auto; }
+
+  .view-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    overflow: hidden;
+  }
+
+  .view-toggle button {
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    padding: 6px 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .view-toggle button.active { background: var(--accent); color: var(--bg); }
+  .view-toggle button:hover:not(.active) { color: var(--text); }
+
+  /* ===== Grid ===== */
+  /* JS masonry: container is position:relative with height set by JS.
+     Tiles are absolute-positioned by the masonry layout function.
+     This replaces CSS column-count which fills left-to-right column
+     by column — JS masonry fills top-to-bottom in natural reading order. */
+  main {
+    position: relative;
+    padding: var(--gap);
+    /* min-height prevents collapse before images load */
+    min-height: 200px;
+  }
+
+  main.hidden { display: none; }
+
+  .tile {
+    position: absolute;
+    overflow: hidden;
+    border-radius: 3px;
+    cursor: pointer;
+    background: var(--bg-elevated);
+    /* Start invisible — JS masonry reveals tiles after positioning */
+    opacity: 0;
+  }
+
+  .tile img { width: 100%; display: block; }
+
+  .empty-state { text-align: center; padding: 80px 20px; color: var(--text-dim); }
+  .empty-state h2 { font-weight: 400; font-size: 18px; color: var(--text); margin-bottom: 6px; }
+
+  /* ===== Boards view ===== */
+  #boardsView { display: none; padding: var(--gap); }
+  #boardsView.active { display: block; }
+
+  .boards-section-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    padding: 12px 4px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .new-board-btn {
+    font-size: 11px;
+    color: var(--text-dim);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .new-board-btn:hover { color: var(--text); }
+
+  .boards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  @media (min-width: 600px) { .boards-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (min-width: 900px) { .boards-grid { grid-template-columns: repeat(4, 1fr); } }
+
+  .board-card {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    background: var(--bg-elevated);
+  }
+
+  .board-card:hover { border-color: var(--accent); }
+
+  .board-cover {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 1px;
+    aspect-ratio: 1.6;
+    background: var(--bg);
+  }
+
+  .board-cover-cell {
+    background: var(--bg-elevated);
+    overflow: hidden;
+  }
+
+  .board-cover-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .board-info { padding: 8px 10px; }
+  .board-name { font-size: 13px; font-weight: 500; color: var(--text); }
+  .board-count { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+
+  .board-card-add {
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1.6;
+    cursor: pointer;
+    color: var(--text-dim);
+    font-size: 12px;
+    background: transparent;
+    width: 100%;
+  }
+
+  .board-card-add:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ===== Board detail view ===== */
+  #boardDetailView { display: none; }
+  #boardDetailView.active { display: block; }
+
+  .board-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 16px 0;
+  }
+
+  .back-btn {
+    font-size: 12px;
+    color: var(--text-dim);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .back-btn:hover { color: var(--text); }
+
+  .board-detail-name { font-size: 16px; font-weight: 500; }
+  .board-detail-count { font-size: 12px; color: var(--text-dim); }
+
+  .board-detail-actions {
+    display: flex;
+    gap: 6px;
+    padding: 8px 16px;
+  }
+
+  .small-btn {
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+
+  .small-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .small-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+  .board-tag-row {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    padding: 0 16px 8px;
+  }
+
+  .board-tag-pill {
+    padding: 3px 10px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-dim);
+    cursor: pointer;
+    background: transparent;
+  }
+
+  .board-tag-pill.active { border-color: var(--accent); color: var(--accent); }
+
+  /* ===== Shared modal/panel backdrop ===== */
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+
+  .backdrop.open { display: flex; }
+
+  .panel {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    width: 100%;
+    max-width: 420px;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+
+  .panel h3 { margin: 0 0 16px; font-weight: 400; font-size: 15px; color: var(--text-dim); }
+
+  .panel input[type="file"] { width: 100%; margin-bottom: 12px; color: var(--text-dim); font-size: 13px; }
+
+  .panel input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    margin-bottom: 12px;
+    font-family: inherit;
+    outline: none;
+  }
+
+  .panel input[type="text"]:focus { border-color: var(--accent); }
+
+  .panel-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+
+  .btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .btn.danger { color: var(--danger); border-color: var(--danger); }
+  .btn.danger:hover { background: var(--danger); color: #fff; }
+
+  .preview-grid { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .preview-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 6px; }
+
+  .app-textarea {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 14px;
+    margin-bottom: 12px;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 60px;
+    outline: none;
+  }
+
+  .app-textarea:focus { border-color: var(--accent); }
+  .app-textarea::placeholder { color: var(--text-dim); }
+
+  #uploadStatus, #editStatus { font-size: 12px; color: var(--text-dim); margin-top: 8px; min-height: 16px; }
+
+  /* Location input with autocomplete */
+  .location-wrap {
+    position: relative;
+    margin-bottom: 12px;
+  }
+
+  .location-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  .location-input {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+  }
+
+  .location-input:focus { border-color: var(--accent); }
+  .location-input::placeholder { color: var(--text-dim); }
+
+  .location-suggest {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    max-height: 140px;
+    overflow-y: auto;
+    z-index: 10;
+    display: none;
+  }
+
+  .location-suggest.open { display: block; }
+
+  .location-suggest-item {
+    padding: 7px 12px;
+    font-size: 12px;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+
+  .location-suggest-item:hover { background: var(--bg); color: var(--text); }
+
+  /* Filter panel — search-first pill cloud */
+  .filter-tag-cloud {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-content: flex-start;
+    max-height: 50vh;
+    overflow-y: auto;
+    padding: 4px 0;
+  }
+
+  .filter-tag-cloud::-webkit-scrollbar { width: 4px; }
+  .filter-tag-cloud::-webkit-scrollbar-track { background: transparent; }
+  .filter-tag-cloud::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .filter-pill {
+    padding: 5px 12px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.1s ease;
+  }
+
+  .filter-pill:hover { border-color: var(--accent); color: var(--text); }
+  .filter-pill.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+  #filterBackdrop .panel { max-width: 480px; max-height: 90vh; }
+
+  .filter-panel-actions { display: flex; gap: 8px; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+
+  .no-tags-msg { color: var(--text-dim); font-size: 13px; }
+
+  /* Chip tag input */
+  .chip-input {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+    padding: 8px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 12px;
+    cursor: text;
+    min-height: 42px;
+  }
+
+  .chip-input:focus-within { border-color: var(--accent); }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 6px 3px 10px;
+    background: var(--accent);
+    color: var(--bg);
+    border-radius: 100px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .chip-remove {
+    border: none;
+    background: rgba(0,0,0,0.15);
+    color: var(--bg);
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .chip-remove:hover { background: rgba(0,0,0,0.3); }
+
+  .chip-text-input {
+    flex: 1;
+    min-width: 80px;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    padding: 3px 2px;
+  }
+
+  .chip-text-input::placeholder { color: var(--text-dim); }
+
+  /* Board selector in edit panel */
+  .board-selector { margin-bottom: 12px; }
+  .board-selector-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin-bottom: 7px; }
+  .board-selector-options { display: flex; flex-wrap: wrap; gap: 5px; }
+
+  .board-toggle-pill {
+    padding: 4px 10px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .board-toggle-pill.selected { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+  /* ===== The Viewer ===== */
+  .viewer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.95);
+    display: none;
+    z-index: 200;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  .viewer-backdrop.open { display: flex; }
+
+  .viewer-stage {
+    flex: 1;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    min-height: 0;
+    padding: 0 16px;
+  }
+
+  .viewer-stage img {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 4px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    display: block;
+  }
+
+  .viewer-top {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .viewer-nav {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 25%;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    color: var(--text-dim);
+    font-size: 28px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .viewer-stage:hover .viewer-nav { opacity: 0.6; }
+  .viewer-nav:hover { opacity: 1 !important; }
+  .viewer-nav.prev { left: 0; justify-content: flex-start; padding-left: 12px; }
+  .viewer-nav.next { right: 0; justify-content: flex-end; padding-right: 12px; }
+
+  .viewer-counter {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: var(--text-dim);
+    background: rgba(0,0,0,0.5);
+    padding: 4px 12px;
+    border-radius: 100px;
+  }
+
+  .viewer-details {
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--border);
+    padding: 16px;
+    display: none;
+    flex-shrink: 0;
+    max-height: 45vh;
+    overflow-y: auto;
+  }
+
+  .viewer-details.open { display: block; }
+
+  .viewer-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+
+  .viewer-tag {
+    font-size: 11px;
+    padding: 3px 10px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 100px;
+    color: var(--text-dim);
+  }
+
+  .viewer-notes { font-size: 13px; color: var(--text); margin-bottom: 14px; white-space: pre-wrap; }
+  .viewer-notes:empty::before { content: "no notes"; color: var(--text-dim); font-style: italic; }
+
+  .viewer-boards-display { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 12px; }
+
+  .viewer-board-chip {
+    font-size: 11px;
+    padding: 3px 10px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    color: var(--text-dim);
+  }
+
+  .section-divider { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin: 8px 0 6px; }
+
+  /* Tag management list */
+  .tag-list-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tag-list-row:last-child { border-bottom: none; }
+
+  .tag-list-name {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .tag-list-name:hover { color: var(--accent); }
+
+  .tag-list-count {
+    font-size: 11px;
+    color: var(--text-dim);
+    min-width: 28px;
+    text-align: right;
+  }
+
+  .tag-list-actions {
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+
+  .tag-action-btn {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 100px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+  }
+
+  .tag-action-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .tag-rename-input {
+    flex: 1;
+    padding: 4px 8px;
+    background: var(--bg);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    outline: none;
+    font-family: inherit;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <svg width="28" height="28" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0; border:1px solid rgba(255,255,255,0.08); border-radius:6px;">
+    <path d="M156 0H44C19.6995 0 0 19.6995 0 44V156C0 180.301 19.6995 200 44 200H156C180.301 200 200 180.301 200 156V44C200 19.6995 180.301 0 156 0Z" fill="#0C0C0D"/>
+    <path d="M46 143C46 140.239 48.2386 138 51 138H108C110.761 138 113 140.239 113 143V171C113 173.761 110.761 176 108 176H51C48.2386 176 46 173.761 46 171V143Z" fill="#F6F5F3"/>
+    <rect x="80" y="78" width="32" height="53" rx="5" fill="#B2A995"/>
+    <rect x="118" y="78" width="48" height="26" rx="5" fill="#B2A995"/>
+    <rect x="80" y="31" width="86" height="40" rx="5" fill="#C94F0F"/>
+    <rect x="46" y="31" width="27.9699" height="40.0902" rx="5" fill="#D4CFC4"/>
+    <rect x="46" y="78" width="28" height="53" rx="5" fill="#D4CFC4"/>
+  </svg>
+  <span class="logo">field</span>
+  <button class="filter-btn" id="filterBtnTop">
+    <span>filter</span>
+    <span class="filter-count" id="filterCount" style="display:none;"></span>
+  </button>
+  <button class="filter-btn" id="tagsBtnTop">tags</button>
+  <div class="view-toggle">
+    <button class="active" id="gridViewBtn" title="grid view">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="0" y="0" width="4.5" height="4.5" rx="1"/><rect x="5.75" y="0" width="4.5" height="4.5" rx="1"/><rect x="11.5" y="0" width="4.5" height="4.5" rx="1"/><rect x="0" y="5.75" width="4.5" height="4.5" rx="1"/><rect x="5.75" y="5.75" width="4.5" height="4.5" rx="1"/><rect x="11.5" y="5.75" width="4.5" height="4.5" rx="1"/><rect x="0" y="11.5" width="4.5" height="4.5" rx="1"/><rect x="5.75" y="11.5" width="4.5" height="4.5" rx="1"/><rect x="11.5" y="11.5" width="4.5" height="4.5" rx="1"/></svg>
+    </button>
+    <button id="boardsViewBtn" title="boards">
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1 1.5A1.5 1.5 0 012.5 0h11A1.5 1.5 0 0115 1.5v2a.5.5 0 01-.5.5h-13a.5.5 0 01-.5-.5v-2zM1 6h14v8.5a1.5 1.5 0 01-1.5 1.5h-11A1.5 1.5 0 011 14.5V6z"/></svg>
+    </button>
+  </div>
+  <div class="spacer"></div>
+  <button class="icon-btn" id="shuffleBtn" title="shuffle">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+  </button>
+  <button class="icon-btn" id="openUpload">+</button>
+</header>
+
+<!-- Grid view -->
+<main id="grid">
+  <div class="empty-state">
+    <h2>nothing here yet</h2>
+    <p>tap + to add your first image</p>
+  </div>
+</main>
+
+<!-- Boards overview -->
+<div id="boardsView">
+  <div class="boards-section-label">
+    your boards
+    <button class="new-board-btn" id="newBoardBtn">+ new board</button>
+  </div>
+  <div class="boards-grid" id="boardsGrid"></div>
+</div>
+
+<!-- Board detail view -->
+<div id="boardDetailView">
+  <div class="board-detail-header">
+    <button class="back-btn" id="backToBoardsBtn">‹ boards</button>
+    <span class="board-detail-name" id="boardDetailName"></span>
+    <span class="board-detail-count" id="boardDetailCount"></span>
+  </div>
+  <div class="board-detail-actions">
+    <button class="small-btn" id="renameBoardBtn">rename</button>
+    <button class="small-btn danger" id="deleteBoardBtn">delete board</button>
+  </div>
+  <div class="board-tag-row" id="boardTagRow"></div>
+  <main id="boardGrid" style="padding-top:0;"></main>
+</div>
+
+<!-- Upload panel -->
+<div class="backdrop" id="uploadBackdrop">
+  <div class="panel">
+    <h3>add images</h3>
+    <input type="file" id="fileInput" accept="image/*" multiple />
+    <div class="preview-grid" id="previewGrid"></div>
+    <div class="chip-input" id="uploadTagsChipInput"></div>
+    <div class="location-wrap">
+      <span class="location-label">location</span>
+      <input type="text" class="location-input" id="uploadLocationInput" placeholder="city, country" autocomplete="off" />
+      <div class="location-suggest" id="uploadLocationSuggest"></div>
+    </div>
+    <textarea id="notesInput" class="app-textarea" placeholder="notes (optional)"></textarea>
+    <div class="board-selector">
+      <div class="board-selector-label">add to boards</div>
+      <div class="board-selector-options" id="uploadBoardOptions"></div>
+    </div>
+    <div id="uploadStatus"></div>
+    <div class="panel-actions">
+      <button class="btn" id="cancelUpload">cancel</button>
+      <button class="btn primary" id="submitUpload">add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Filter panel -->
+<div class="backdrop" id="filterBackdrop">
+  <div class="panel" style="max-width:480px; max-height:90vh;">
+    <h3>filter by tag</h3>
+    <input type="text" id="filterSearch" placeholder="search tags…" style="margin-bottom:10px;" />
+    <div class="chip-input" id="filterChipDisplay" style="cursor:default; min-height:0; padding:0; border:none; margin-bottom:8px;"></div>
+    <div id="filterTagList" class="filter-tag-cloud"></div>
+    <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--border);">
+      <span class="location-label">locations</span>
+      <div id="filterLocationList" class="filter-tag-cloud" style="padding-top:6px;"></div>
+    </div>
+    <div class="filter-panel-actions">
+      <button class="btn" id="clearFilters">clear all</button>
+      <button class="btn primary" id="applyFilters">done</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tags panel -->
+<div class="backdrop" id="tagsBackdrop">
+  <div class="panel" style="max-width:520px; max-height:90vh;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+      <h3 style="margin:0;">all tags</h3>
+      <div style="display:flex; gap:6px;">
+        <button class="small-btn" id="tagSortCount" style="border-color:var(--accent);color:var(--accent);">by use</button>
+        <button class="small-btn" id="tagSortAlpha">a–z</button>
+      </div>
+    </div>
+    <div id="tagsListContainer" style="max-height:60vh; overflow-y:auto;"></div>
+    <div class="panel-actions" style="margin-top:12px; border-top:1px solid var(--border); padding-top:12px;">
+      <button class="btn" id="closeTagsPanel">done</button>
+    </div>
+  </div>
+</div>
+
+<!-- New board panel -->
+<div class="backdrop" id="newBoardBackdrop">
+  <div class="panel">
+    <h3>new board</h3>
+    <input type="text" id="newBoardName" placeholder="photography, sketchbook, animals…" />
+    <div class="panel-actions">
+      <button class="btn" id="cancelNewBoard">cancel</button>
+      <button class="btn primary" id="confirmNewBoard">create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Rename board panel -->
+<div class="backdrop" id="renameBoardBackdrop">
+  <div class="panel">
+    <h3>rename board</h3>
+    <input type="text" id="renameBoardName" placeholder="new name" />
+    <div class="panel-actions">
+      <button class="btn" id="cancelRenameBoard">cancel</button>
+      <button class="btn primary" id="confirmRenameBoard">rename</button>
+    </div>
+  </div>
+</div>
+
+<!-- The Viewer -->
+<div class="viewer-backdrop" id="viewerBackdrop">
+  <div class="viewer-stage" id="viewerStage">
+    <div class="viewer-top">
+      <button class="icon-btn" id="viewerCloseBtn" title="close">×</button>
+      <button class="icon-btn" id="viewerInfoBtn" title="show details">i</button>
+    </div>
+    <button class="viewer-nav prev" id="viewerPrev">‹</button>
+    <button class="viewer-nav next" id="viewerNext">›</button>
+    <div class="viewer-counter" id="viewerCounter"></div>
+  </div>
+  <div class="viewer-details" id="viewerDetails">
+    <div class="viewer-tags" id="viewerTags"></div>
+    <div class="viewer-boards-display" id="viewerBoards"></div>
+    <div id="viewerLocation" style="font-size:12px; color:var(--text-dim); margin-bottom:8px;"></div>
+    <div class="viewer-notes" id="viewerNotes"></div>
+    <div class="section-divider">edit</div>
+    <div class="chip-input" id="editTagsChipInput"></div>
+    <div class="location-wrap">
+      <span class="location-label">location</span>
+      <input type="text" class="location-input" id="editLocationInput" placeholder="city, country" autocomplete="off" />
+      <div class="location-suggest" id="editLocationSuggest"></div>
+    </div>
+    <textarea id="editNotesInput" class="app-textarea" placeholder="notes"></textarea>
+    <div class="board-selector">
+      <div class="board-selector-label">boards</div>
+      <div class="board-selector-options" id="editBoardOptions"></div>
+    </div>
+    <div id="editStatus"></div>
+    <div class="panel-actions">
+      <button class="btn danger" id="deleteImageBtn">delete</button>
+      <button class="btn primary" id="saveEditBtn">save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ===== Elements =====
+  const grid = document.getElementById('grid');
+  const boardsView = document.getElementById('boardsView');
+  const boardDetailView = document.getElementById('boardDetailView');
+  const boardsGrid = document.getElementById('boardsGrid');
+  const boardDetailName = document.getElementById('boardDetailName');
+  const boardDetailCount = document.getElementById('boardDetailCount');
+  const boardTagRow = document.getElementById('boardTagRow');
+  const boardGrid = document.getElementById('boardGrid');
+  const backToBoardsBtn = document.getElementById('backToBoardsBtn');
+  const renameBoardBtn = document.getElementById('renameBoardBtn');
+  const deleteBoardBtn = document.getElementById('deleteBoardBtn');
+  const gridViewBtn = document.getElementById('gridViewBtn');
+  const boardsViewBtn = document.getElementById('boardsViewBtn');
+  const shuffleBtn = document.getElementById('shuffleBtn');
+  const openUpload = document.getElementById('openUpload');
+  const uploadBackdrop = document.getElementById('uploadBackdrop');
+  const cancelUpload = document.getElementById('cancelUpload');
+  const submitUpload = document.getElementById('submitUpload');
+  const fileInput = document.getElementById('fileInput');
+  const previewGrid = document.getElementById('previewGrid');
+  const notesInput = document.getElementById('notesInput');
+  const uploadStatus = document.getElementById('uploadStatus');
+  const uploadBoardOptions = document.getElementById('uploadBoardOptions');
+  const filterBackdrop = document.getElementById('filterBackdrop');
+  const filterBtnTop = document.getElementById('filterBtnTop');
+  const filterSearch = document.getElementById('filterSearch');
+  const tagsBackdrop = document.getElementById('tagsBackdrop');
+  const tagsBtnTop = document.getElementById('tagsBtnTop');
+  const tagsListContainer = document.getElementById('tagsListContainer');
+  const tagSortCount = document.getElementById('tagSortCount');
+  const tagSortAlpha = document.getElementById('tagSortAlpha');
+  const closeTagsPanel = document.getElementById('closeTagsPanel');
+  const filterCount = document.getElementById('filterCount');
+  const filterTagList = document.getElementById('filterTagList');
+  const filterChipDisplay = document.getElementById('filterChipDisplay');
+  const clearFilters = document.getElementById('clearFilters');
+  const applyFilters = document.getElementById('applyFilters');
+  const filterLocationList = document.getElementById('filterLocationList');
+  const newBoardBtn = document.getElementById('newBoardBtn');
+  const newBoardBackdrop = document.getElementById('newBoardBackdrop');
+  const newBoardName = document.getElementById('newBoardName');
+  const cancelNewBoard = document.getElementById('cancelNewBoard');
+  const confirmNewBoard = document.getElementById('confirmNewBoard');
+  const renameBoardBackdrop = document.getElementById('renameBoardBackdrop');
+  const renameBoardName = document.getElementById('renameBoardName');
+  const cancelRenameBoard = document.getElementById('cancelRenameBoard');
+  const confirmRenameBoard = document.getElementById('confirmRenameBoard');
+  const viewerBackdrop = document.getElementById('viewerBackdrop');
+  const viewerStage = document.getElementById('viewerStage');
+  const viewerPrev = document.getElementById('viewerPrev');
+  const viewerNext = document.getElementById('viewerNext');
+  const viewerCounter = document.getElementById('viewerCounter');
+  const viewerCloseBtn = document.getElementById('viewerCloseBtn');
+  const viewerInfoBtn = document.getElementById('viewerInfoBtn');
+  const viewerDetails = document.getElementById('viewerDetails');
+  const viewerTags = document.getElementById('viewerTags');
+  const viewerBoards = document.getElementById('viewerBoards');
+  const viewerNotes = document.getElementById('viewerNotes');
+  const editNotesInput = document.getElementById('editNotesInput');
+  const editBoardOptions = document.getElementById('editBoardOptions');
+  const editLocationInput = document.getElementById('editLocationInput');
+  const editLocationSuggest = document.getElementById('editLocationSuggest');
+  const uploadLocationInput = document.getElementById('uploadLocationInput');
+  const uploadLocationSuggest = document.getElementById('uploadLocationSuggest');
+  const viewerLocation = document.getElementById('viewerLocation');
+  const editStatus = document.getElementById('editStatus');
+  const deleteImageBtn = document.getElementById('deleteImageBtn');
+  const saveEditBtn = document.getElementById('saveEditBtn');
+
+  // ===== State =====
+  let allTagsSeen = new Set();
+  let activeFilters = new Set();
+  let currentImages = [];
+  let currentView = 'grid'; // 'grid' | 'boards' | 'board-detail'
+  let currentBoardId = null;
+  let currentBoardTagFilter = null;
+  let allBoards = [];
+  let viewerList = [];
+  let viewerIndex = 0;
+  let apiKey = null;
+  let activeLocationFilter = null; // currently selected location, or null for all
+
+  // GSAP available for entrance animations
+
+  // ===== Chip tag input factory =====
+  function createChipInput(container, initialTags = [], options = {}) {
+    let tags = [...initialTags];
+    const onChange = options.onChange || (() => {});
+    const textInput = document.createElement('input');
+    textInput.type = 'text';
+    textInput.className = 'chip-text-input';
+
+    function render() {
+      container.innerHTML = '';
+      tags.forEach((tag) => {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.innerHTML = `<span>${tag}</span>`;
+        const rm = document.createElement('button');
+        rm.className = 'chip-remove';
+        rm.type = 'button';
+        rm.textContent = '×';
+        rm.addEventListener('click', (e) => {
+          e.stopPropagation();
+          tags = tags.filter((t) => t !== tag);
+          render();
+          onChange(tags);
+        });
+        chip.appendChild(rm);
+        container.appendChild(chip);
+      });
+      container.appendChild(textInput);
+      textInput.placeholder = tags.length ? '' : 'add a tag…';
+    }
+
+    function commit() {
+      const raw = textInput.value.trim().toLowerCase();
+      const changed = raw && !tags.includes(raw);
+      if (changed) tags.push(raw);
+      textInput.value = '';
+      render();
+      textInput.focus();
+      if (changed) onChange(tags);
+    }
+
+    textInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commit(); }
+      else if (e.key === 'Backspace' && textInput.value === '' && tags.length > 0) {
+        tags = tags.slice(0, -1);
+        render();
+        onChange(tags);
+      }
+    });
+    textInput.addEventListener('blur', () => { if (textInput.value.trim()) commit(); });
+    container.addEventListener('click', () => textInput.focus());
+    render();
+    return {
+      getTags: () => tags,
+      setTags: (t) => { tags = [...t]; render(); },
+    };
+  }
+
+  const uploadTagsChipInput = createChipInput(document.getElementById('uploadTagsChipInput'));
+  const editTagsChipInput = createChipInput(document.getElementById('editTagsChipInput'), [], {
+    onChange: () => saveImageEdit({ silent: true }),
+  });
+
+  // ===== Board selector renderer =====
+  // Renders a row of toggleable board pills in a container.
+  // Returns getSelectedBoardIds() to read current selection.
+  function renderBoardSelector(container, selectedIds = []) {
+    container.innerHTML = '';
+    if (allBoards.length === 0) {
+      container.innerHTML = '<span style="font-size:11px;color:var(--text-dim);">no boards yet — create one in boards view</span>';
+      return { getSelectedBoardIds: () => [] };
+    }
+    const selected = new Set(selectedIds);
+
+    function rebuild() {
+      container.innerHTML = '';
+      allBoards.forEach((board) => {
+        const pill = document.createElement('button');
+        pill.type = 'button';
+        pill.className = 'board-toggle-pill' + (selected.has(board.id) ? ' selected' : '');
+        pill.textContent = board.name;
+        pill.addEventListener('click', () => {
+          if (selected.has(board.id)) selected.delete(board.id);
+          else selected.add(board.id);
+          rebuild();
+          // If this is the edit panel (not the upload panel), auto-save
+          // board changes immediately — same behaviour as tag chips.
+          if (container === editBoardOptions) {
+            saveImageEdit({ silent: true, saveBoardsOnly: true });
+          }
+        });
+        container.appendChild(pill);
+      });
+    }
+
+    rebuild();
+    return { getSelectedBoardIds: () => Array.from(selected) };
+  }
+
+  let uploadBoardSelector = { getSelectedBoardIds: () => [] };
+  let editBoardSelector = { getSelectedBoardIds: () => [] };
+  let allLocations = []; // { location, count } from /api/locations
+
+  async function loadLocations() {
+    try {
+      const res = await fetch('/api/locations');
+      const data = await res.json();
+      allLocations = data.locations || [];
+    } catch (err) {
+      allLocations = [];
+    }
+  }
+
+  // Autocomplete for location inputs. Shows suggestions from previously
+  // used locations that match what the user is typing.
+  function setupLocationAutocomplete(input, suggestContainer) {
+    input.addEventListener('input', () => {
+      const query = input.value.trim().toLowerCase();
+      if (!query) {
+        suggestContainer.classList.remove('open');
+        suggestContainer.innerHTML = '';
+        return;
+      }
+      const matches = allLocations
+        .filter(l => l.location.toLowerCase().includes(query))
+        .slice(0, 6);
+      if (matches.length === 0) {
+        suggestContainer.classList.remove('open');
+        suggestContainer.innerHTML = '';
+        return;
+      }
+      suggestContainer.innerHTML = '';
+      matches.forEach(m => {
+        const item = document.createElement('div');
+        item.className = 'location-suggest-item';
+        item.textContent = m.location;
+        item.addEventListener('mousedown', (e) => {
+          e.preventDefault(); // prevent blur from firing before click
+          input.value = m.location;
+          suggestContainer.classList.remove('open');
+        });
+        suggestContainer.appendChild(item);
+      });
+      suggestContainer.classList.add('open');
+    });
+
+    input.addEventListener('blur', () => {
+      // Small delay so mousedown on suggestion fires first
+      setTimeout(() => suggestContainer.classList.remove('open'), 100);
+    });
+
+    input.addEventListener('focus', () => {
+      if (input.value.trim()) input.dispatchEvent(new Event('input'));
+    });
+  }
+
+  setupLocationAutocomplete(uploadLocationInput, uploadLocationSuggest);
+  setupLocationAutocomplete(editLocationInput, editLocationSuggest);
+
+  // ===== Load images =====
+  async function loadImages(boardId = null, tagFilter = null) {
+    let url = '/api/images';
+    const params = new URLSearchParams();
+    if (boardId) params.set('board', boardId);
+    if (tagFilter) params.set('tag', tagFilter);
+    if ([...params].length) url += '?' + params.toString();
+
+    const res = await fetch(url);
+    const data = await res.json();
+    const allImages = data.images || [];
+
+    if (!boardId) {
+      allImages.forEach((img) => img.tags.forEach((t) => allTagsSeen.add(t)));
+      renderFilterList();
+      currentImages = activeFilters.size > 0
+        ? allImages.filter((img) => img.tags.some((t) => activeFilters.has(t)))
+        : allImages;
+      // Apply location filter on top of tag filter
+      if (activeLocationFilter) {
+        currentImages = currentImages.filter((img) => img.location === activeLocationFilter);
+      }
+    } else {
+      currentImages = allImages;
+    }
+
+    const targetGrid = boardId ? boardGrid : grid;
+    renderGrid(currentImages, targetGrid);
+
+    const viewerIsShowing = viewerBackdrop.classList.contains('open');
+    if (viewerIsShowing && viewerList.length > 0) {
+      const prevId = viewerList[viewerIndex]?.id;
+      viewerList = currentImages;
+      const newIdx = currentImages.findIndex((i) => i.id === prevId);
+      viewerIndex = newIdx >= 0 ? newIdx : Math.min(viewerIndex, Math.max(currentImages.length - 1, 0));
+    }
+  }
+
+  // Per-grid debounce timers — keyed by the grid element itself so
+  // the main grid and board grid don't interfere with each other.
+  const masonryTimers = new WeakMap();
+
+  function scheduleMasonry(targetGrid, animate = false) {
+    clearTimeout(masonryTimers.get(targetGrid));
+    masonryTimers.set(targetGrid, setTimeout(() => runMasonry(targetGrid, animate), 60));
+  }
+
+  function renderGrid(images, targetGrid) {
+    if (images.length === 0) {
+      targetGrid.style.height = '';
+      targetGrid.innerHTML = `<div class="empty-state"><h2>nothing here</h2><p>${currentView === 'board-detail' ? 'add images to this board from the edit panel' : 'tap + to add your first image'}</p></div>`;
+      return;
+    }
+    targetGrid.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    images.forEach((img, idx) => {
+      const tile = document.createElement('div');
+      tile.className = 'tile';
+      const imgEl = document.createElement('img');
+      imgEl.src = img.url;
+      imgEl.alt = img.filename;
+      imgEl.loading = 'lazy';
+      tile.appendChild(imgEl);
+      tile.addEventListener('click', () => {
+        viewerIndex = idx;
+        viewerList = currentImages;
+        renderViewerSlide();
+        viewerBackdrop.classList.add('open');
+      });
+      // Each image load schedules a debounced re-layout.
+      // 60ms debounce means if 10 images load within 60ms of each other
+      // (very common on fast connections), masonry only runs ONCE after
+      // the last one — not 10 times. No animation on re-layouts since
+      // tiles are already visible.
+      imgEl.addEventListener('load', () => scheduleMasonry(targetGrid, false), { once: true });
+      frag.appendChild(tile);
+    });
+    targetGrid.appendChild(frag);
+    // First layout run — animate tiles in. Deferred one frame so the
+    // browser has finished parsing the DOM before we measure widths.
+    requestAnimationFrame(() => runMasonry(targetGrid, true));
+  }
+
+  // How many columns to use at different viewport widths
+  function getColumnCount() {
+    const w = window.innerWidth;
+    if (w >= 1500) return 7;
+    if (w >= 1100) return 6;
+    if (w >= 700)  return 4;
+    return 3;
+  }
+
+  // The JS masonry layout engine.
+  // animate=true on initial load only — subsequent re-layouts from image
+  // loads just reposition silently so the page doesn't re-animate constantly.
+  function runMasonry(targetGrid, animate = false) {
+    const tiles = Array.from(targetGrid.querySelectorAll('.tile'));
+    if (tiles.length === 0) return;
+
+    const gap = 4;
+    const padding = 4;
+    const cols = getColumnCount();
+    const containerWidth = targetGrid.offsetWidth - padding * 2;
+    if (containerWidth <= 0) return; // not visible yet, skip
+    const colWidth = Math.floor((containerWidth - gap * (cols - 1)) / cols);
+    const colHeights = new Array(cols).fill(0);
+
+    tiles.forEach((tile) => {
+      const shortest = colHeights.indexOf(Math.min(...colHeights));
+      const x = padding + shortest * (colWidth + gap);
+      const y = padding + colHeights[shortest];
+
+      tile.style.left = x + 'px';
+      tile.style.top = y + 'px';
+      tile.style.width = colWidth + 'px';
+
+      const img = tile.querySelector('img');
+      const tileHeight = img.naturalHeight && img.naturalWidth
+        ? Math.round((img.naturalHeight / img.naturalWidth) * colWidth)
+        : colWidth; // square placeholder until image loads
+
+      colHeights[shortest] += tileHeight + gap;
+    });
+
+    targetGrid.style.height = (Math.max(...colHeights) + padding) + 'px';
+
+    if (animate && window.gsap) {
+      const sorted = [...tiles].sort((a, b) => parseFloat(a.style.top) - parseFloat(b.style.top));
+      gsap.fromTo(sorted,
+        { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out', stagger: 0.02, overwrite: true }
+      );
+    } else {
+      // Just ensure tiles are visible after a silent re-layout
+      tiles.forEach(t => { if (t.style.opacity === '0') t.style.opacity = '1'; });
+    }
+  }
+
+  // Re-run masonry on resize so the layout stays correct if the window changes size
+  let resizeTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      [grid, boardGrid].forEach((g) => {
+        if (g.querySelector('.tile')) runMasonry(g, false);
+      });
+    }, 150);
+  });
+
+  // ===== Boards =====
+  async function loadBoards() {
+    const res = await fetch('/api/boards');
+    const data = await res.json();
+    allBoards = data.boards || [];
+    renderBoardsOverview();
+    // If the viewer details panel is open, re-render its board selector
+    // so newly created boards appear there without needing to close and reopen.
+    if (viewerDetails.classList.contains('open') && viewerList[viewerIndex]) {
+      editBoardSelector = renderBoardSelector(editBoardOptions, viewerList[viewerIndex].boards || []);
+    }
+  }
+
+  function renderBoardsOverview() {
+    boardsGrid.innerHTML = '';
+    allBoards.forEach((board) => {
+      const card = document.createElement('div');
+      card.className = 'board-card';
+
+      const cover = document.createElement('div');
+      cover.className = 'board-cover';
+      const slots = 4;
+      for (let i = 0; i < slots; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'board-cover-cell';
+        if (board.covers[i]) {
+          const img = document.createElement('img');
+          img.src = board.covers[i];
+          img.alt = '';
+          img.loading = 'lazy';
+          cell.appendChild(img);
+        }
+        cover.appendChild(cell);
+      }
+
+      const info = document.createElement('div');
+      info.className = 'board-info';
+      info.innerHTML = `<div class="board-name">${board.name}</div><div class="board-count">${board.count} image${board.count !== 1 ? 's' : ''}</div>`;
+
+      card.appendChild(cover);
+      card.appendChild(info);
+      card.addEventListener('click', () => openBoardDetail(board));
+      boardsGrid.appendChild(card);
+    });
+
+    const addCard = document.createElement('button');
+    addCard.className = 'board-card-add';
+    addCard.textContent = '+ new board';
+    addCard.addEventListener('click', () => newBoardBackdrop.classList.add('open'));
+    boardsGrid.appendChild(addCard);
+  }
+
+  function openBoardDetail(board) {
+    currentBoardId = board.id;
+    currentBoardTagFilter = null;
+    boardDetailName.textContent = board.name;
+    boardDetailCount.textContent = `· ${board.count}`;
+    switchView('board-detail');
+    loadBoardDetail();
+  }
+
+  async function loadBoardDetail() {
+    await loadImages(currentBoardId, currentBoardTagFilter);
+
+    // Build tag pills from this board's images only
+    const boardTags = new Set();
+    currentImages.forEach((img) => img.tags.forEach((t) => boardTags.add(t)));
+    boardTagRow.innerHTML = '';
+    Array.from(boardTags).sort().forEach((tag) => {
+      const pill = document.createElement('button');
+      pill.className = 'board-tag-pill' + (currentBoardTagFilter === tag ? ' active' : '');
+      pill.textContent = tag;
+      pill.addEventListener('click', () => {
+        currentBoardTagFilter = currentBoardTagFilter === tag ? null : tag;
+        loadBoardDetail();
+      });
+      boardTagRow.appendChild(pill);
+    });
+  }
+
+  // ===== View switching =====
+  function switchView(view) {
+    currentView = view;
+    grid.classList.toggle('hidden', view !== 'grid');
+    boardsView.classList.toggle('active', view === 'boards');
+    boardDetailView.classList.toggle('active', view === 'board-detail');
+    gridViewBtn.classList.toggle('active', view === 'grid');
+    boardsViewBtn.classList.toggle('active', view === 'boards');
+    shuffleBtn.style.display = view === 'boards' ? 'none' : '';
+
+    if (view === 'grid') {
+      // Clear board context and reload the full unfiltered grid
+      currentBoardId = null;
+      currentBoardTagFilter = null;
+      loadImages();
+    }
+
+    if (view === 'boards') {
+      currentBoardId = null;
+      currentBoardTagFilter = null;
+      loadBoards();
+    }
+  }
+
+  gridViewBtn.addEventListener('click', () => switchView('grid'));
+  boardsViewBtn.addEventListener('click', () => switchView('boards'));
+  backToBoardsBtn.addEventListener('click', () => switchView('boards'));
+
+  // ===== Shuffle =====
+  shuffleBtn.addEventListener('click', () => {
+    // Shuffle the underlying images array, then re-render the grid.
+    // We can't just re-order DOM nodes since tiles are absolute-positioned —
+    // masonry uses array order to determine placement, so we shuffle the data.
+    if (currentImages.length < 2) return;
+    for (let i = currentImages.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [currentImages[i], currentImages[j]] = [currentImages[j], currentImages[i]];
+    }
+    const targetGrid = currentView === 'board-detail' ? boardGrid : grid;
+    renderGrid(currentImages, targetGrid);
+  });
+
+  // ===== Filter panel =====
+  function renderFilterChips() {
+    if (activeFilters.size === 0) {
+      filterChipDisplay.innerHTML = '';
+      filterChipDisplay.style.display = 'none';
+      return;
+    }
+    filterChipDisplay.style.display = 'flex';
+    filterChipDisplay.innerHTML = '';
+    Array.from(activeFilters).forEach((tag) => {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.innerHTML = `<span>${tag}</span>`;
+      const rm = document.createElement('button');
+      rm.className = 'chip-remove';
+      rm.type = 'button';
+      rm.textContent = '×';
+      rm.addEventListener('click', () => {
+        activeFilters.delete(tag);
+        renderFilterList();
+        renderFilterChips();
+      });
+      chip.appendChild(rm);
+      filterChipDisplay.appendChild(chip);
+    });
+  }
+
+  function renderFilterList(searchQuery = '') {
+    if (allTagsSeen.size === 0) {
+      filterTagList.innerHTML = '<p class="no-tags-msg">no tags yet</p>';
+      return;
+    }
+    filterTagList.innerHTML = '';
+
+    // Sort by usage count (most used first) using allTagsData if available,
+    // otherwise fall back to alphabetical from allTagsSeen.
+    let tags;
+    if (allTagsData.length > 0) {
+      tags = [...allTagsData].sort((a, b) => b.count - a.count).map(t => t.name);
+    } else {
+      tags = Array.from(allTagsSeen).sort();
+    }
+
+    // Filter by search query
+    const query = searchQuery.toLowerCase().trim();
+    if (query) {
+      tags = tags.filter(t => t.includes(query));
+    }
+
+    if (tags.length === 0 && query) {
+      filterTagList.innerHTML = `<p class="no-tags-msg">no tags matching "${query}"</p>`;
+      return;
+    }
+
+    tags.forEach((tag) => {
+      const pill = document.createElement('button');
+      pill.className = 'filter-pill' + (activeFilters.has(tag) ? ' active' : '');
+      pill.textContent = tag;
+      pill.addEventListener('click', () => {
+        if (activeFilters.has(tag)) activeFilters.delete(tag);
+        else activeFilters.add(tag);
+        renderFilterList(filterSearch.value);
+        renderFilterChips();
+      });
+      filterTagList.appendChild(pill);
+    });
+  }
+
+  function updateFilterButton() {
+    const hasActive = activeFilters.size > 0 || activeLocationFilter;
+    filterBtnTop.classList.toggle('has-active', !!hasActive);
+    const count = activeFilters.size + (activeLocationFilter ? 1 : 0);
+    filterCount.style.display = count > 0 ? 'inline-block' : 'none';
+    filterCount.textContent = count;
+  }
+
+  filterBtnTop.addEventListener('click', async () => {
+    await Promise.all([loadTagsData(), loadLocations()]);
+    filterSearch.value = '';
+    renderFilterList();
+    renderFilterChips();
+    renderFilterLocations();
+    filterBackdrop.classList.add('open');
+    setTimeout(() => filterSearch.focus(), 50);
+  });
+  filterBackdrop.addEventListener('click', (e) => { if (e.target === filterBackdrop) filterBackdrop.classList.remove('open'); });
+  clearFilters.addEventListener('click', () => { activeFilters.clear(); activeLocationFilter = null; renderFilterList(filterSearch.value); renderFilterChips(); renderFilterLocations(); });
+  applyFilters.addEventListener('click', () => { filterBackdrop.classList.remove('open'); updateFilterButton(); viewerIndex = 0; loadImages(); });
+
+  // Live search
+  filterSearch.addEventListener('input', () => {
+    renderFilterList(filterSearch.value);
+  });
+
+  function renderFilterLocations() {
+    filterLocationList.innerHTML = '';
+    if (allLocations.length === 0) {
+      filterLocationList.innerHTML = '<span class="no-tags-msg">no locations yet</span>';
+      return;
+    }
+    allLocations.forEach(loc => {
+      const pill = document.createElement('button');
+      pill.className = 'filter-pill' + (activeLocationFilter === loc.location ? ' active' : '');
+      pill.textContent = loc.location;
+      pill.addEventListener('click', () => {
+        activeLocationFilter = activeLocationFilter === loc.location ? null : loc.location;
+        renderFilterLocations();
+      });
+      filterLocationList.appendChild(pill);
+    });
+  }
+
+  // ===== Tags panel =====
+  let allTagsData = [];   // { name, count } from /api/tags
+  let tagSortMode = 'count'; // 'count' | 'alpha'
+
+  tagsBtnTop.addEventListener('click', async () => {
+    await loadTagsData();
+    renderTagsList();
+    tagsBackdrop.classList.add('open');
+  });
+
+  closeTagsPanel.addEventListener('click', () => tagsBackdrop.classList.remove('open'));
+  tagsBackdrop.addEventListener('click', (e) => { if (e.target === tagsBackdrop) tagsBackdrop.classList.remove('open'); });
+
+  tagSortCount.addEventListener('click', () => {
+    tagSortMode = 'count';
+    tagSortCount.style.borderColor = 'var(--accent)';
+    tagSortCount.style.color = 'var(--accent)';
+    tagSortAlpha.style.borderColor = '';
+    tagSortAlpha.style.color = '';
+    renderTagsList();
+  });
+
+  tagSortAlpha.addEventListener('click', () => {
+    tagSortMode = 'alpha';
+    tagSortAlpha.style.borderColor = 'var(--accent)';
+    tagSortAlpha.style.color = 'var(--accent)';
+    tagSortCount.style.borderColor = '';
+    tagSortCount.style.color = '';
+    renderTagsList();
+  });
+
+  async function loadTagsData() {
+    const res = await fetch('/api/tags');
+    const data = await res.json();
+    allTagsData = data.tags || [];
+  }
+
+  function renderTagsList() {
+    tagsListContainer.innerHTML = '';
+
+    if (allTagsData.length === 0) {
+      tagsListContainer.innerHTML = '<p class="no-tags-msg">no tags yet</p>';
+      return;
+    }
+
+    const sorted = [...allTagsData].sort((a, b) => {
+      if (tagSortMode === 'alpha') return a.name.localeCompare(b.name);
+      return b.count - a.count;
+    });
+
+    sorted.forEach((tag) => {
+      renderTagRow(tag);
+    });
+  }
+
+  function renderTagRow(tag, replaceEl = null) {
+    const row = document.createElement('div');
+    row.className = 'tag-list-row';
+
+    // Clicking the tag name filters the grid to this tag
+    const name = document.createElement('span');
+    name.className = 'tag-list-name';
+    name.textContent = tag.name;
+    name.title = `filter by "${tag.name}"`;
+    name.addEventListener('click', () => {
+      tagsBackdrop.classList.remove('open');
+      activeFilters.clear();
+      activeFilters.add(tag.name);
+      updateFilterButton();
+      switchView('grid');
+      loadImages();
+    });
+
+    const count = document.createElement('span');
+    count.className = 'tag-list-count';
+    count.textContent = tag.count;
+
+    const actions = document.createElement('div');
+    actions.className = 'tag-list-actions';
+
+    // Rename button — turns the row into an edit field
+    const renameBtn = document.createElement('button');
+    renameBtn.className = 'tag-action-btn';
+    renameBtn.textContent = 'rename';
+    renameBtn.addEventListener('click', () => {
+      renderTagRenameRow(tag, row);
+    });
+
+    // Delete button — removes the tag from all images
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'tag-action-btn';
+    deleteBtn.style.color = 'var(--danger)';
+    deleteBtn.textContent = 'delete';
+    deleteBtn.addEventListener('click', async () => {
+      const sure = confirm(`Delete tag "${tag.name}"? It will be removed from all ${tag.count} image${tag.count !== 1 ? 's' : ''} that use it. Images themselves won't be deleted.`);
+      if (!sure) return;
+      try {
+        await fetch('/api/tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey || '' },
+          body: JSON.stringify({ action: 'delete', name: tag.name }),
+        });
+        allTagsSeen.delete(tag.name);
+        activeFilters.delete(tag.name);
+        await loadTagsData();
+        renderTagsList();
+      } catch (err) {
+        alert(`Error: ${err.message}`);
+      }
+    });
+
+    actions.appendChild(renameBtn);
+    actions.appendChild(deleteBtn);
+    row.appendChild(name);
+    row.appendChild(count);
+    row.appendChild(actions);
+
+    if (replaceEl) {
+      tagsListContainer.replaceChild(row, replaceEl);
+    } else {
+      tagsListContainer.appendChild(row);
+    }
+  }
+
+  function renderTagRenameRow(tag, replaceEl) {
+    const row = document.createElement('div');
+    row.className = 'tag-list-row';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'tag-rename-input';
+    input.value = tag.name;
+
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'tag-action-btn';
+    saveBtn.style.borderColor = 'var(--accent)';
+    saveBtn.style.color = 'var(--accent)';
+    saveBtn.textContent = 'save';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.className = 'tag-action-btn';
+    cancelBtn.textContent = 'cancel';
+
+    const status = document.createElement('span');
+    status.style.cssText = 'font-size:11px; color:var(--text-dim); min-width:60px;';
+
+    async function doRename() {
+      const newName = input.value.trim().toLowerCase();
+      if (!newName || newName === tag.name) {
+        tagsListContainer.replaceChild(renderTagRowEl(tag), row);
+        return;
+      }
+
+      status.textContent = 'saving…';
+      saveBtn.disabled = true;
+
+      try {
+        const res = await fetch('/api/tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey || '' },
+          body: JSON.stringify({ action: 'rename', oldName: tag.name, newName }),
+        });
+        const data = await res.json();
+
+        if (data.error) {
+          status.textContent = `error: ${data.error}`;
+          saveBtn.disabled = false;
+        } else {
+          // Reload tags data and re-render the list
+          await loadTagsData();
+          renderTagsList();
+          // Also refresh allTagsSeen so the filter panel picks up the change
+          allTagsSeen.delete(tag.name);
+          allTagsSeen.add(newName);
+          // If this tag was in the active filter, update it there too
+          if (activeFilters.has(tag.name)) {
+            activeFilters.delete(tag.name);
+            activeFilters.add(newName);
+            updateFilterButton();
+          }
+          if (data.merged) {
+            // briefly show merge confirmation — the panel already re-rendered
+          }
+        }
+      } catch (err) {
+        status.textContent = `error: ${err.message}`;
+        saveBtn.disabled = false;
+      }
+    }
+
+    saveBtn.addEventListener('click', doRename);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doRename();
+      if (e.key === 'Escape') renderTagsList();
+    });
+    cancelBtn.addEventListener('click', () => renderTagsList());
+
+    const actions = document.createElement('div');
+    actions.className = 'tag-list-actions';
+    actions.appendChild(cancelBtn);
+    actions.appendChild(saveBtn);
+
+    row.appendChild(input);
+    row.appendChild(status);
+    row.appendChild(actions);
+
+    tagsListContainer.replaceChild(row, replaceEl);
+    input.focus();
+    input.select();
+  }
+
+  // Helper used in cancel path
+  function renderTagRowEl(tag) {
+    const temp = document.createElement('div');
+    renderTagRow(tag, null);
+    return tagsListContainer.lastChild;
+  }
+
+  // ===== New board =====
+  newBoardBtn.addEventListener('click', () => { newBoardName.value = ''; newBoardBackdrop.classList.add('open'); setTimeout(() => newBoardName.focus(), 50); });
+  cancelNewBoard.addEventListener('click', () => newBoardBackdrop.classList.remove('open'));
+  newBoardBackdrop.addEventListener('click', (e) => { if (e.target === newBoardBackdrop) newBoardBackdrop.classList.remove('open'); });
+  newBoardName.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmNewBoard.click(); });
+  confirmNewBoard.addEventListener('click', async () => {
+    const name = newBoardName.value.trim();
+    if (!name) return;
+    await fetch('/api/boards-manage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey || '' },
+      body: JSON.stringify({ action: 'create', name }),
+    });
+    newBoardBackdrop.classList.remove('open');
+    await loadBoards();
+  });
+
+  // ===== Rename board =====
+  renameBoardBtn.addEventListener('click', () => {
+    renameBoardName.value = boardDetailName.textContent;
+    renameBoardBackdrop.classList.add('open');
+    setTimeout(() => renameBoardName.focus(), 50);
+  });
+  cancelRenameBoard.addEventListener('click', () => renameBoardBackdrop.classList.remove('open'));
+  renameBoardName.addEventListener('keydown', (e) => { if (e.key === 'Enter') confirmRenameBoard.click(); });
+  confirmRenameBoard.addEventListener('click', async () => {
+    const name = renameBoardName.value.trim();
+    if (!name || !currentBoardId) return;
+    await fetch('/api/boards-manage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey || '' },
+      body: JSON.stringify({ action: 'rename', id: currentBoardId, name }),
+    });
+    boardDetailName.textContent = name;
+    renameBoardBackdrop.classList.remove('open');
+    await loadBoards();
+  });
+
+  // ===== Delete board =====
+  // ⚠️ Deletes the board only — images are NOT deleted, just unassigned.
+  deleteBoardBtn.addEventListener('click', async () => {
+    const sure = confirm(`Delete "${boardDetailName.textContent}"? Images won't be deleted, just removed from this board.`);
+    if (!sure) return;
+    await fetch('/api/boards-manage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey || '' },
+      body: JSON.stringify({ action: 'delete', id: currentBoardId }),
+    });
+    currentBoardId = null;
+    switchView('boards');
+  });
+
+  // ===== Upload =====
+  openUpload.addEventListener('click', () => {
+    // Re-render board selector fresh each time so any newly created boards
+    // appear — boards created after the page loaded won't show otherwise.
+    uploadBoardSelector = renderBoardSelector(uploadBoardOptions, []);
+    uploadBackdrop.classList.add('open');
+  });
+  cancelUpload.addEventListener('click', closeUploadModal);
+  uploadBackdrop.addEventListener('click', (e) => { if (e.target === uploadBackdrop) closeUploadModal(); });
+
+  function closeUploadModal() {
+    uploadBackdrop.classList.remove('open');
+    fileInput.value = '';
+    uploadTagsChipInput.setTags([]);
+    notesInput.value = '';
+    uploadLocationInput.value = '';
+    previewGrid.innerHTML = '';
+    uploadStatus.textContent = '';
+  }
+
+  fileInput.addEventListener('change', () => {
+    previewGrid.innerHTML = '';
+    Array.from(fileInput.files).forEach((file) => {
+      const img = document.createElement('img');
+      img.className = 'preview-thumb';
+      img.src = URL.createObjectURL(file);
+      previewGrid.appendChild(img);
+    });
+  });
+
+  const MAX_DIMENSION = 1600;
+  const JPEG_QUALITY = 0.82;
+
+  function resizeImageFile(file) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        let { width, height } = img;
+        const longest = Math.max(width, height);
+        if (longest > MAX_DIMENSION) {
+          const scale = MAX_DIMENSION / longest;
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (!blob) { reject(new Error('Could not process image')); return; }
+          resolve(new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }));
+        }, 'image/jpeg', JPEG_QUALITY);
+      };
+      img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Could not read image')); };
+      img.src = objectUrl;
+    });
+  }
+
+  submitUpload.addEventListener('click', async () => {
+    const files = fileInput.files;
+    if (!files || files.length === 0) { uploadStatus.textContent = 'choose at least one image first'; return; }
+    submitUpload.disabled = true;
+
+    let resized;
+    try {
+      uploadStatus.textContent = `preparing ${files.length} image${files.length > 1 ? 's' : ''}…`;
+      resized = await Promise.all(Array.from(files).map(resizeImageFile));
+    } catch (err) {
+      uploadStatus.textContent = `error: ${err.message}`;
+      submitUpload.disabled = false;
+      return;
+    }
+
+    uploadStatus.textContent = `uploading…`;
+    const formData = new FormData();
+    resized.forEach((f) => formData.append('image', f));
+    formData.append('tags', uploadTagsChipInput.getTags().join(','));
+    formData.append('notes', notesInput.value);
+    formData.append('location', uploadLocationInput.value.trim());
+    formData.append('boards', JSON.stringify(uploadBoardSelector.getSelectedBoardIds()));
+
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', headers: { 'x-api-key': apiKey || '' }, body: formData });
+      const data = await res.json();
+      if (data.error) { uploadStatus.textContent = `error: ${data.error}`; }
+      else {
+        uploadStatus.textContent = 'added!';
+        setTimeout(() => { closeUploadModal(); loadImages(); if (currentView === 'board-detail') loadBoardDetail(); }, 400);
+      }
+    } catch (err) { uploadStatus.textContent = `error: ${err.message}`; }
+    finally { submitUpload.disabled = false; }
+  });
+
+  // ===== Viewer =====
+  function renderViewerSlide() {
+    const existing = viewerStage.querySelector('.viewer-slide-img');
+    if (existing) existing.remove();
+    if (!viewerList || viewerList.length === 0) { viewerCounter.textContent = ''; return; }
+    if (viewerIndex < 0) viewerIndex = viewerList.length - 1;
+    if (viewerIndex >= viewerList.length) viewerIndex = 0;
+    const img = viewerList[viewerIndex];
+    const imgEl = document.createElement('img');
+    imgEl.className = 'viewer-slide-img';
+    imgEl.src = img.url;
+    imgEl.alt = img.filename;
+    viewerStage.appendChild(imgEl);
+    if (window.gsap) gsap.fromTo(imgEl, { opacity: 0 }, { opacity: 1, duration: 0.2 });
+    viewerCounter.textContent = `${viewerIndex + 1} / ${viewerList.length}`;
+
+    viewerTags.innerHTML = img.tags.map(t => `<span class="viewer-tag">${t}</span>`).join('') || '<span class="viewer-tag">no tags</span>';
+
+    const imgBoardNames = (img.boards || [])
+      .map((bid) => allBoards.find((b) => b.id === bid)?.name)
+      .filter(Boolean);
+    viewerBoards.innerHTML = imgBoardNames.map(n => `<span class="viewer-board-chip">${n}</span>`).join('');
+
+    viewerLocation.textContent = img.location ? `📍 ${img.location}` : '';
+    viewerNotes.textContent = img.notes || '';
+    editTagsChipInput.setTags(img.tags || []);
+    editLocationInput.value = img.location || '';
+    editNotesInput.value = img.notes || '';
+    editBoardSelector = renderBoardSelector(editBoardOptions, img.boards || []);
+    editStatus.textContent = '';
+  }
+
+  function viewerGoPrev() { viewerIndex -= 1; renderViewerSlide(); }
+  function viewerGoNext() { viewerIndex += 1; renderViewerSlide(); }
+
+  viewerPrev.addEventListener('click', viewerGoPrev);
+  viewerNext.addEventListener('click', viewerGoNext);
+  viewerCloseBtn.addEventListener('click', () => { viewerBackdrop.classList.remove('open'); viewerDetails.classList.remove('open'); });
+  viewerInfoBtn.addEventListener('click', () => viewerDetails.classList.toggle('open'));
+  viewerBackdrop.addEventListener('click', (e) => { if (e.target === viewerBackdrop) { viewerBackdrop.classList.remove('open'); viewerDetails.classList.remove('open'); } });
+  viewerDetails.addEventListener('click', (e) => e.stopPropagation());
+
+  document.addEventListener('keydown', (e) => {
+    if (!viewerBackdrop.classList.contains('open')) return;
+    const active = document.activeElement?.tagName;
+    if (active === 'TEXTAREA' || active === 'INPUT') return;
+    if (e.key === 'ArrowLeft') viewerGoPrev();
+    if (e.key === 'ArrowRight') viewerGoNext();
+    if (e.key === 'Escape') { viewerBackdrop.classList.remove('open'); viewerDetails.classList.remove('open'); }
+  });
+
+  let touchStartX = null;
+  let touchIsPinch = false;
+
+  viewerStage.addEventListener('touchstart', (e) => {
+    // Only track single-finger touches for swipe navigation.
+    // Multi-touch (pinch-to-zoom) should be ignored entirely.
+    if (e.touches.length > 1) {
+      touchStartX = null;
+      touchIsPinch = true;
+      return;
+    }
+    touchIsPinch = false;
+    touchStartX = e.touches[0].clientX;
+  });
+
+  // If a second finger arrives mid-gesture, cancel the swipe
+  viewerStage.addEventListener('touchmove', (e) => {
+    if (e.touches.length > 1) {
+      touchStartX = null;
+      touchIsPinch = true;
+    }
+  });
+
+  viewerStage.addEventListener('touchend', (e) => {
+    if (touchIsPinch || touchStartX === null) {
+      touchStartX = null;
+      touchIsPinch = false;
+      return;
+    }
+    const diff = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(diff) > 50) { if (diff > 0) viewerGoPrev(); else viewerGoNext(); }
+    touchStartX = null;
+  });
+
+  async function saveImageEdit({ silent = false, saveBoardsOnly = false } = {}) {
+    if (!viewerList[viewerIndex]) return;
+    const id = viewerList[viewerIndex].id;
+    if (!silent) { editStatus.textContent = 'saving…'; saveEditBtn.disabled = true; }
+    try {
+      const res = await fetch('/api/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey || '' },
+        body: JSON.stringify({
+          id,
+          tags: editTagsChipInput.getTags().join(','),
+          notes: saveBoardsOnly ? (viewerList[viewerIndex]?.notes || '') : editNotesInput.value,
+          location: saveBoardsOnly ? (viewerList[viewerIndex]?.location || '') : editLocationInput.value,
+          boards: editBoardSelector.getSelectedBoardIds(),
+        }),
+      });
+      const data = await res.json();
+      if (data.error) { editStatus.textContent = `error: ${data.error}`; }
+      else if (!silent) {
+        editStatus.textContent = 'saved!';
+        await loadImages(currentView === 'board-detail' ? currentBoardId : null);
+        renderViewerSlide();
+        await loadBoards();
+      } else {
+        const img = viewerList[viewerIndex];
+        if (img) {
+          img.tags = editTagsChipInput.getTags();
+          img.boards = editBoardSelector.getSelectedBoardIds();
+          img.tags.forEach((t) => allTagsSeen.add(t));
+        }
+        if (!saveBoardsOnly) {
+          editStatus.textContent = 'tag saved';
+          setTimeout(() => { if (editStatus.textContent === 'tag saved') editStatus.textContent = ''; }, 1200);
+        } else {
+          editStatus.textContent = 'board saved';
+          setTimeout(() => { if (editStatus.textContent === 'board saved') editStatus.textContent = ''; }, 1200);
+          // Refresh board covers in the background
+          loadBoards();
+        }
+      }
+    } catch (err) { editStatus.textContent = `error: ${err.message}`; }
+    finally { if (!silent) saveEditBtn.disabled = false; }
+  }
+
+  saveEditBtn.addEventListener('click', () => saveImageEdit({ silent: false }));
+
+  // ⚠️ Permanently deletes the image file and metadata. No undo.
+  deleteImageBtn.addEventListener('click', async () => {
+    if (!viewerList[viewerIndex]) return;
+    const id = viewerList[viewerIndex].id;
+    if (!confirm('Delete this image? This cannot be undone.')) return;
+    editStatus.textContent = 'deleting…';
+    deleteImageBtn.disabled = true;
+    try {
+      const res = await fetch('/api/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey || '' },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (data.error) { editStatus.textContent = `error: ${data.error}`; }
+      else {
+        viewerBackdrop.classList.remove('open');
+        viewerDetails.classList.remove('open');
+        await loadImages(currentView === 'board-detail' ? currentBoardId : null);
+        if (currentView === 'board-detail') loadBoardDetail();
+        await loadBoards();
+      }
+    } catch (err) { editStatus.textContent = `error: ${err.message}`; }
+    finally { deleteImageBtn.disabled = false; }
+  });
+
+  // Also pass board assignments on upload — update upload.js handles the boards field.
+  // We also need to handle the boards field in upload.js, which currently ignores it.
+  // That's handled in the updated upload.js included in this release.
+
+  // ===== Init =====
+  async function init() {
+    try {
+      const res = await fetch('/api/config');
+      const data = await res.json();
+      if (data.key) apiKey = data.key;
+    } catch (err) {
+      console.warn('Could not fetch API key');
+    }
+    // Load boards first so allBoards is populated before any image
+    // viewer opens — the board selector pills depend on allBoards being
+    // ready, and a race condition was leaving it empty on first load.
+    await loadBoards();
+    await loadLocations();
+    await loadImages();
+  }
+
+  init();
+</script>
+</body>
+</html>

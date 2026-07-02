@@ -1,0 +1,13 @@
+# macOS junk
+.DS_Store
+
+# Cloudflare local cache
+.wrangler
+
+# Secrets — never publish these
+.env
+.dev.vars
+.env.local
+
+# Dependencies
+node_modules
