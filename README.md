@@ -1,6 +1,6 @@
 # field
 
-**Your personal visual field. Collect images from anywhere, own everything.**
+**Your personal visual field. Collect images from anywhere and break free from the algorithm.**
 
 Field is a self-hosted visual collection tool — a private moodboard (or mood board) you control, accessible from your phone, desktop, and browser. No algorithm, no ads, no feed designed to keep you scrolling. Just a continuous visual field of everything you've chosen to look at.
 
