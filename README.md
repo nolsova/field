@@ -1,9 +1,3 @@
-
-
-https://github.com/user-attachments/assets/8b4195e4-15f0-42ad-aa99-00dd0afaf2c6
-
-
-
 # field
 
 **Your personal visual field. Collect images from anywhere and break free from the algorithm.**
