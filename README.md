@@ -187,8 +187,6 @@ MIT — use it, fork it, make it yours.
 
 ---
 
-*Built by* [Sol Nova](https://solnova.me)
-
 ## Disclaimer: A note from the creator
 
 I'm a newbie and this project was built collaboratively with Claude (Anthropic's AI) over many sessions of trial, error, and iteration. I'm not a developer by training,
@@ -205,12 +203,6 @@ I hope it's useful to you too.
 ## Philosophy
 
 Inspired by a desire for a new internet, Field is built on the belief that your visual thinking deserves a quiet, personal space. Not a feed, not a social network, not a product that monetizes your attention.
-
----
-
-## License
-
-MIT — use it, fork it, make it yours.
 
 ---
 
