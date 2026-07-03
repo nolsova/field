@@ -1,3 +1,9 @@
+
+
+https://github.com/user-attachments/assets/8b4195e4-15f0-42ad-aa99-00dd0afaf2c6
+
+
+
 # field
 
 **Your personal visual field. Collect images from anywhere and break free from the algorithm.**
@@ -11,6 +17,8 @@ Field is a self-hosted visual collection tool — a private moodboard (or mood b
 It has become increasingly difficult to capture, organize, and reference a growing collection of visual inspiration and ephemera. Whether it's a screenshot, a photo you took, or something you found on a website, you can use Field to collect and browse it all, in one quiet space that's genuinely yours.
 
 Field is built around a simple idea: your collection of images deserves it own place to function as  a map, an atlas, or an archive. 
+
+https://github.com/user-attachments/assets/1f000815-4c70-4604-84cc-3da3a3daa559
 
 - **Collect from anywhere** — upload from your desktop, phone camera roll, or clip images directly from any website with the browser extension
 
@@ -189,16 +197,7 @@ MIT — use it, fork it, make it yours.
 
 ## Disclaimer: A note from the creator
 
-I'm a newbie and this project was built collaboratively with Claude (Anthropic's AI) over many sessions of trial, error, and iteration. I'm not a developer by training,
-and I can't guarantee I'll be able to fix every bug that comes up.
-
-That said, I'd love to hear what you run into. If you try Field and hit a wall,
-open an issue and describe what happened, even if I can't fix it immediately,
-it helps build a picture of what needs work. And if you're a developer who wants
-to contribute fixes or improvements, pull requests are very welcome.
-
-This is a personal tool that grew into something I wanted to share.
-I hope it's useful to you too.
+I'm a newbie and this project was built collaboratively with Claude AI over many sessions of trial, error, and iteration. I'm not a developer. This is a personal tool that grew into something I wanted to share.
 
 ## Philosophy
 
