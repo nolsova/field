@@ -711,6 +711,69 @@
     outline: none;
     font-family: inherit;
   }
+  /* ===== Crop overlay =====
+     A full-screen backdrop with the image centered and a draggable,
+     resizable selection rectangle on top of it. */
+  .crop-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 200; /* above the viewer (which is under 200) */
+    background: rgba(12,12,13,0.96);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 20px;
+  }
+  .crop-backdrop.open { display: flex; }
+
+  /* Shrink-wraps to exactly the displayed image size, so the selection
+     rectangle's pixel coordinates map 1:1 onto the visible image. */
+  .crop-wrap {
+    position: relative;
+    display: inline-block;
+    line-height: 0; /* remove inline-image baseline gap */
+  }
+  .crop-wrap img {
+    max-width: min(90vw, 900px);
+    max-height: 65vh;
+    display: block;
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+
+  /* The selection rectangle. Darkened surroundings are simulated with a
+     huge box-shadow, which is cheaper than four separate mask divs. */
+  .crop-select {
+    position: absolute;
+    border: 1px solid var(--accent);
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
+    cursor: move;
+    touch-action: none; /* we handle all dragging ourselves */
+  }
+
+  /* Corner handles for resizing */
+  .crop-handle {
+    position: absolute;
+    width: 22px;
+    height: 22px;
+    touch-action: none;
+  }
+  .crop-handle::after {
+    content: "";
+    position: absolute;
+    inset: 5px;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+  .crop-handle.nw { top: -11px; left: -11px; cursor: nwse-resize; }
+  .crop-handle.ne { top: -11px; right: -11px; cursor: nesw-resize; }
+  .crop-handle.sw { bottom: -11px; left: -11px; cursor: nesw-resize; }
+  .crop-handle.se { bottom: -11px; right: -11px; cursor: nwse-resize; }
+
+  .crop-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  #cropStatus { font-size: 13px; color: var(--text-dim); min-height: 18px; text-align: center; }
 </style>
 </head>
 <body>
@@ -868,6 +931,14 @@
     <div class="viewer-top">
       <button class="icon-btn" id="viewerCloseBtn" title="close">×</button>
       <button class="icon-btn" id="viewerInfoBtn" title="show details">i</button>
+      <!-- Standard crop glyph, drawn as a small inline SVG so it matches
+           the icon buttons' weight at any size -->
+      <button class="icon-btn" id="cropImageBtn" title="crop">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <path d="M6 2v14a2 2 0 0 0 2 2h14" />
+          <path d="M18 22V8a2 2 0 0 0-2-2H2" />
+        </svg>
+      </button>
     </div>
     <button class="viewer-nav prev" id="viewerPrev">‹</button>
     <button class="viewer-nav next" id="viewerNext">›</button>
@@ -895,6 +966,27 @@
       <button class="btn danger" id="deleteImageBtn">delete</button>
       <button class="btn primary" id="saveEditBtn">save</button>
     </div>
+  </div>
+</div>
+
+<!-- Crop overlay — opened from the viewer's edit panel.
+     The crop is NON-DESTRUCTIVE: the original file is backed up in R2
+     the first time an image is cropped, and "revert original" restores it. -->
+<div class="crop-backdrop" id="cropBackdrop">
+  <div class="crop-wrap" id="cropWrap">
+    <img id="cropImg" alt="crop preview" />
+    <div class="crop-select" id="cropSelect">
+      <div class="crop-handle nw" data-corner="nw"></div>
+      <div class="crop-handle ne" data-corner="ne"></div>
+      <div class="crop-handle sw" data-corner="sw"></div>
+      <div class="crop-handle se" data-corner="se"></div>
+    </div>
+  </div>
+  <div id="cropStatus"></div>
+  <div class="crop-actions">
+    <button class="btn" id="cropCancelBtn">cancel</button>
+    <button class="btn" id="cropRevertBtn">revert original</button>
+    <button class="btn primary" id="cropApplyBtn">apply crop</button>
   </div>
 </div>
 
@@ -2047,6 +2139,196 @@
     } catch (err) { editStatus.textContent = `error: ${err.message}`; }
     finally { deleteImageBtn.disabled = false; }
   });
+
+  // ===== Crop (non-destructive) =====
+  // The original file is backed up server-side on first crop; the cropped
+  // version overwrites the image's normal URL so everything else (grid,
+  // boards, homepage embed) keeps working with zero changes.
+  const cropBackdrop = document.getElementById('cropBackdrop');
+  const cropWrap = document.getElementById('cropWrap');
+  const cropImg = document.getElementById('cropImg');
+  const cropSelect = document.getElementById('cropSelect');
+  const cropStatus = document.getElementById('cropStatus');
+  const cropCancelBtn = document.getElementById('cropCancelBtn');
+  const cropRevertBtn = document.getElementById('cropRevertBtn');
+  const cropApplyBtn = document.getElementById('cropApplyBtn');
+  const cropImageBtn = document.getElementById('cropImageBtn');
+
+  // Selection rectangle in DISPLAYED-image pixel coordinates:
+  // { x, y, w, h } relative to the top-left of the visible image.
+  let sel = { x: 0, y: 0, w: 0, h: 0 };
+  const MIN_SEL = 24; // don't let the selection collapse smaller than this
+
+  function renderSel() {
+    cropSelect.style.left = sel.x + 'px';
+    cropSelect.style.top = sel.y + 'px';
+    cropSelect.style.width = sel.w + 'px';
+    cropSelect.style.height = sel.h + 'px';
+  }
+
+  function openCrop() {
+    const img = viewerList[viewerIndex];
+    if (!img) return;
+    cropStatus.textContent = '';
+    // Load the current display version of the image. crossOrigin isn't
+    // needed since /api/file/... is same-origin, so canvas stays clean.
+    cropImg.onload = () => {
+      // Default selection: centered, 80% of the displayed image
+      const W = cropImg.clientWidth, H = cropImg.clientHeight;
+      sel = { x: W * 0.1, y: H * 0.1, w: W * 0.8, h: H * 0.8 };
+      renderSel();
+    };
+    cropImg.src = img.url;
+    cropBackdrop.classList.add('open');
+  }
+
+  function closeCrop() { cropBackdrop.classList.remove('open'); }
+
+  cropImageBtn.addEventListener('click', openCrop);
+  cropCancelBtn.addEventListener('click', closeCrop);
+
+  // --- Dragging & resizing, unified for mouse and touch via Pointer Events ---
+  // dragMode is either 'move' (dragging inside the rect) or a corner name.
+  let dragMode = null;
+  let dragStart = null; // pointer position + selection snapshot at drag start
+
+  function clampSel() {
+    const W = cropImg.clientWidth, H = cropImg.clientHeight;
+    sel.w = Math.max(MIN_SEL, Math.min(sel.w, W));
+    sel.h = Math.max(MIN_SEL, Math.min(sel.h, H));
+    sel.x = Math.max(0, Math.min(sel.x, W - sel.w));
+    sel.y = Math.max(0, Math.min(sel.y, H - sel.h));
+  }
+
+  function onPointerDown(e) {
+    // Corner handle → resize; anywhere else on the rect → move
+    dragMode = e.target.dataset?.corner || 'move';
+    dragStart = { px: e.clientX, py: e.clientY, ...sel };
+    cropSelect.setPointerCapture?.(e.pointerId);
+    e.preventDefault();
+  }
+
+  function onPointerMove(e) {
+    if (!dragMode || !dragStart) return;
+    const dx = e.clientX - dragStart.px;
+    const dy = e.clientY - dragStart.py;
+
+    if (dragMode === 'move') {
+      sel.x = dragStart.x + dx;
+      sel.y = dragStart.y + dy;
+    } else {
+      // Resizing: each corner moves two edges. Work from the drag-start
+      // snapshot so the math stays stable during fast drags.
+      let { x, y, w, h } = dragStart;
+      if (dragMode.includes('w')) { x += dx; w -= dx; } // west edge follows pointer
+      if (dragMode.includes('e')) { w += dx; }           // east edge follows pointer
+      if (dragMode.includes('n')) { y += dy; h -= dy; } // north edge
+      if (dragMode.includes('s')) { h += dy; }           // south edge
+      // Prevent the rect from inverting through itself
+      if (w >= MIN_SEL) { sel.x = x; sel.w = w; }
+      if (h >= MIN_SEL) { sel.y = y; sel.h = h; }
+    }
+    clampSel();
+    renderSel();
+    e.preventDefault();
+  }
+
+  function onPointerUp() { dragMode = null; dragStart = null; }
+
+  cropSelect.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+
+  // --- Apply: canvas-crop at the image's NATURAL resolution, then upload ---
+  cropApplyBtn.addEventListener('click', async () => {
+    const img = viewerList[viewerIndex];
+    if (!img) return;
+    cropStatus.textContent = 'cropping…';
+    cropApplyBtn.disabled = true;
+    try {
+      // Scale factor between the displayed size and the real file size —
+      // the crop is cut from the full-resolution original, not the preview.
+      const scaleX = cropImg.naturalWidth / cropImg.clientWidth;
+      const scaleY = cropImg.naturalHeight / cropImg.clientHeight;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(sel.w * scaleX);
+      canvas.height = Math.round(sel.h * scaleY);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(
+        cropImg,
+        sel.x * scaleX, sel.y * scaleY, sel.w * scaleX, sel.h * scaleY,
+        0, 0, canvas.width, canvas.height
+      );
+
+      // Keep PNGs as PNG (preserves transparency); everything else → JPEG
+      const isPng = /\.png$/i.test(img.filename || '');
+      const mime = isPng ? 'image/png' : 'image/jpeg';
+      const blob = await new Promise((res) => canvas.toBlob(res, mime, 0.92));
+      if (!blob) throw new Error('Could not create cropped image');
+
+      const formData = new FormData();
+      formData.append('id', img.id);
+      formData.append('image', blob, img.filename || 'cropped.jpg');
+
+      const res = await fetch('/api/crop', {
+        method: 'POST',
+        headers: { 'x-api-key': apiKey || '' },
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.error) { cropStatus.textContent = `error: ${data.error}`; return; }
+
+      cropStatus.textContent = 'cropped!';
+      await refreshAfterCrop(img.id);
+      closeCrop();
+    } catch (err) {
+      cropStatus.textContent = `error: ${err.message}`;
+    } finally {
+      cropApplyBtn.disabled = false;
+    }
+  });
+
+  // --- Revert: server copies the backed-up original over the display file ---
+  cropRevertBtn.addEventListener('click', async () => {
+    const img = viewerList[viewerIndex];
+    if (!img) return;
+    cropStatus.textContent = 'reverting…';
+    cropRevertBtn.disabled = true;
+    try {
+      const res = await fetch('/api/crop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey || '' },
+        body: JSON.stringify({ id: img.id, revert: true }),
+      });
+      const data = await res.json();
+      if (data.error) { cropStatus.textContent = `error: ${data.error}`; return; }
+
+      cropStatus.textContent = 'reverted!';
+      await refreshAfterCrop(img.id);
+      closeCrop();
+    } catch (err) {
+      cropStatus.textContent = `error: ${err.message}`;
+    } finally {
+      cropRevertBtn.disabled = false;
+    }
+  });
+
+  // After a crop or revert the image URL is UNCHANGED (that's the point —
+  // nothing else has to know), but the browser may have the old pixels
+  // cached. Appending a throwaway ?v= timestamp forces a fresh fetch for
+  // just this image, just this once.
+  async function refreshAfterCrop(id) {
+    await loadImages(currentView === 'board-detail' ? currentBoardId : null);
+    const bust = (list) => {
+      const item = (list || []).find((i) => i.id === id);
+      if (item) item.url = item.url.split('?')[0] + '?v=' + Date.now();
+    };
+    bust(currentImages);
+    bust(viewerList);
+    renderGrid(currentImages, currentView === 'board-detail' ? boardGrid : grid);
+    renderViewerSlide();
+  }
 
   // Also pass board assignments on upload — update upload.js handles the boards field.
   // We also need to handle the boards field in upload.js, which currently ignores it.
