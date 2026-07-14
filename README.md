@@ -1,21 +1,27 @@
 # field
 
-**Your personal visual field. Collect images from anywhere, own everything.**
+**Your personal visual field. Collect images from anywhere and break free from the algorithm.**
 
-Field is a self-hosted visual collection tool — a private moodboard you control, accessible from your phone, desktop, and browser. No algorithm, no ads, no feed designed to keep you scrolling. Just a continuous visual field of everything you've chosen to look at.
+Field is a self-hosted visual collection tool — a private moodboard (or mood board) you control, accessible from your phone, desktop, and browser. No algorithm, no ads, no feed designed to keep you scrolling. Just a continuous visual field of everything you've chosen to look at.
 
 ---
 
 ## Why Field
 
-Pinterest is increasingly unusable for actual creative work. Are.na is wonderful but text-heavy. Your camera roll is chronological and personal. None of them let you collect freely from anywhere — a screenshot, a photo you took, something you found on Behance — and browse it all in one quiet, visual space that's genuinely yours.
+It has become increasingly difficult to capture, organize, and reference a growing collection of visual inspiration and ephemera. Whether it's a screenshot, a photo you took, or something you found on a website, you can use Field to collect and browse it all, in one quiet space that's genuinely yours.
 
-Field is built around a simple idea: your visual thinking deserves its own place to live.
+Field is built around a simple idea: your collection of images deserves it own place to function as  a map, an atlas, or an archive. 
+
+https://github.com/user-attachments/assets/1f000815-4c70-4604-84cc-3da3a3daa559
 
 - **Collect from anywhere** — upload from your desktop, phone camera roll, or clip images directly from any website with the browser extension
+
 - **Own your data** — images live in your own Cloudflare R2 bucket, metadata in your own D1 database. Nothing is shared, analyzed, or monetized
+
 - **Access from anywhere** — works as a progressive web app on mobile, full browser on desktop
+
 - **Organize your way** — chip-style tags, boards/folders, and a filter system that stays out of your way until you need it
+
 - **No friction** — batch upload, auto-resize, auto-save on tagging, shuffle
 
 ---
@@ -172,17 +178,8 @@ Then try the install again.
 - [ ] Pagination / infinite scroll for large libraries
 - [ ] Tag rename and merge
 - [ ] Full-text search across tags and notes
-- [ ] Word cloud tag browser
 - [ ] One-click deploy button
 - [ ] Firefox extension support
-
----
-
-## Philosophy
-
-Field is built on the belief that your visual thinking deserves a quiet, personal space — not a feed, not a social network, not a product that monetizes your attention. It's closer to a sketchbook or a pinboard than to Pinterest.
-
-Inspired by [Are.na](https://www.are.na/), [digital gardens](https://maggieappleton.com/garden-history), and the [IndieWeb](https://indieweb.org/).
 
 ---
 
@@ -192,4 +189,14 @@ MIT — use it, fork it, make it yours.
 
 ---
 
-*Built by [Sonny](https://solnova.me)*
+## Disclaimer: A note from the creator
+
+I'm a newbie and this project was built collaboratively with Claude AI over many sessions of trial, error, and iteration. I'm not a developer. This is a personal tool that grew into something I wanted to share.
+
+## Philosophy
+
+Inspired by a desire for a new internet, Field is built on the belief that your visual thinking deserves a quiet, personal space. Not a feed, not a social network, not a product that monetizes your attention.
+
+---
+
+*Built by [Sol Nova](https://solnova.me)*
