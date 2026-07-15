@@ -1918,32 +1918,67 @@
     });
   });
 
-  const MAX_DIMENSION = 1600;
-  const JPEG_QUALITY = 0.82;
+  // Files under this size are uploaded as-is — no canvas, no re-encoding,
+  // no quality loss. Only files whose ENCODED output exceeds this threshold
+  // get scaled down. We check after encoding, not before, because JPEG
+  // compression is non-linear — a 5.9 MB file often encodes well under 5 MB
+  // at full resolution and needs no resizing at all.
+  const LARGE_FILE_THRESHOLD = 5 * 1024 * 1024; // 5 MB in bytes
+  const JPEG_QUALITY = 0.95;
 
-  function resizeImageFile(file) {
+  function processImageFile(file) {
     return new Promise((resolve, reject) => {
+
+      // Under 5 MB on disk — almost certainly fine at full res. Send as-is,
+      // no canvas, no re-encoding, no quality loss.
+      if (file.size <= LARGE_FILE_THRESHOLD) {
+        resolve(file);
+        return;
+      }
+
+      // Over 5 MB on disk — load the image and try encoding at full
+      // resolution first. JPEG files often compress well below 5 MB even
+      // from a large source; we only scale if the encoded output is still
+      // too large. Each iteration reduces dimensions by 10% until it fits.
       const img = new Image();
       const objectUrl = URL.createObjectURL(file);
-      img.onload = () => {
+
+      img.onload = async () => {
         URL.revokeObjectURL(objectUrl);
-        let { width, height } = img;
-        const longest = Math.max(width, height);
-        if (longest > MAX_DIMENSION) {
-          const scale = MAX_DIMENSION / longest;
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        canvas.toBlob((blob) => {
+
+        const { width, height } = img;
+        let scale = 1.0; // start at full resolution
+        let blob = null;
+        let attempts = 0;
+
+        while (attempts < 10) {
+          const canvas = document.createElement('canvas');
+          canvas.width  = Math.round(width  * scale);
+          canvas.height = Math.round(height * scale);
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          blob = await new Promise((res) => canvas.toBlob(res, 'image/jpeg', JPEG_QUALITY));
           if (!blob) { reject(new Error('Could not process image')); return; }
-          resolve(new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' }));
-        }, 'image/jpeg', JPEG_QUALITY);
+
+          // Encoded output fits — we're done. Could be full-res or scaled.
+          if (blob.size <= LARGE_FILE_THRESHOLD) break;
+
+          // Still too large — reduce by 10% and try again
+          scale *= 0.9;
+          attempts++;
+        }
+
+        if (!blob) { reject(new Error('Could not process image')); return; }
+
+        const name = file.name.replace(/\.[^.]+$/, '') + '.jpg';
+        resolve(new File([blob], name, { type: 'image/jpeg' }));
       };
-      img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error('Could not read image')); };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error('Could not read image'));
+      };
+
       img.src = objectUrl;
     });
   }
@@ -1956,7 +1991,7 @@
     let resized;
     try {
       uploadStatus.textContent = `preparing ${files.length} image${files.length > 1 ? 's' : ''}…`;
-      resized = await Promise.all(Array.from(files).map(resizeImageFile));
+      resized = await Promise.all(Array.from(files).map(processImageFile));
     } catch (err) {
       uploadStatus.textContent = `error: ${err.message}`;
       submitUpload.disabled = false;
