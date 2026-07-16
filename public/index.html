@@ -247,14 +247,58 @@
 
   .back-btn:hover { color: var(--text); }
 
-  .board-detail-name { font-size: 16px; font-weight: 500; }
+  .board-detail-name {
+    font-size: 16px;
+    font-weight: 500;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-family: inherit;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    padding: 2px 0;
+  }
+  .board-detail-name:hover { color: var(--accent); }
+  .board-detail-name svg { opacity: 0.5; transition: transform 0.15s ease; }
+  .board-detail-name.open svg { transform: rotate(180deg); }
+
   .board-detail-count { font-size: 12px; color: var(--text-dim); }
 
-  .board-detail-actions {
-    display: flex;
-    gap: 6px;
-    padding: 8px 16px;
+  /* Title dropdown — hidden by default, opened by clicking the board name.
+     Positioned relative to the header so it hangs just under the title. */
+  .board-title-wrap { position: relative; }
+
+  .board-title-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 30;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px;
+    min-width: 140px;
+    flex-direction: column;
+    gap: 2px;
   }
+  .board-title-dropdown.open { display: flex; }
+
+  .board-title-dropdown button {
+    text-align: left;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 13px;
+    font-family: inherit;
+    padding: 8px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .board-title-dropdown button:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+  .board-title-dropdown button.danger:hover { color: var(--danger); }
 
   .small-btn {
     font-size: 11px;
@@ -830,12 +874,18 @@
 <div id="boardDetailView">
   <div class="board-detail-header">
     <button class="back-btn" id="backToBoardsBtn">‹ boards</button>
-    <span class="board-detail-name" id="boardDetailName"></span>
+    <div class="board-title-wrap">
+      <button class="board-detail-name" id="boardDetailNameBtn">
+        <span id="boardDetailName"></span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <!-- Opens when the title above is clicked; closes on selection or outside click -->
+      <div class="board-title-dropdown" id="boardTitleDropdown">
+        <button id="renameBoardBtn">rename</button>
+        <button class="danger" id="deleteBoardBtn">delete board</button>
+      </div>
+    </div>
     <span class="board-detail-count" id="boardDetailCount"></span>
-  </div>
-  <div class="board-detail-actions">
-    <button class="small-btn" id="renameBoardBtn">rename</button>
-    <button class="small-btn danger" id="deleteBoardBtn">delete board</button>
   </div>
   <div class="board-tag-row" id="boardTagRow"></div>
   <main id="boardGrid" style="padding-top:0;"></main>
@@ -1003,6 +1053,32 @@
   const backToBoardsBtn = document.getElementById('backToBoardsBtn');
   const renameBoardBtn = document.getElementById('renameBoardBtn');
   const deleteBoardBtn = document.getElementById('deleteBoardBtn');
+  const boardDetailNameBtn = document.getElementById('boardDetailNameBtn');
+  const boardTitleDropdown = document.getElementById('boardTitleDropdown');
+
+  // ===== Board title dropdown =====
+  // Clicking the board name toggles a small menu with rename/delete —
+  // replaces the old always-visible rename/delete pill buttons, which sat
+  // right next to the board's tag chips and looked confusingly similar.
+  boardDetailNameBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); // don't let this click immediately close itself via the document listener below
+    const isOpen = boardTitleDropdown.classList.toggle('open');
+    boardDetailNameBtn.classList.toggle('open', isOpen);
+  });
+
+  // Close the dropdown on any click outside it
+  document.addEventListener('click', (e) => {
+    if (!boardTitleDropdown.classList.contains('open')) return;
+    if (e.target === boardDetailNameBtn || boardDetailNameBtn.contains(e.target)) return;
+    if (boardTitleDropdown.contains(e.target)) return;
+    boardTitleDropdown.classList.remove('open');
+    boardDetailNameBtn.classList.remove('open');
+  });
+
+  function closeBoardTitleDropdown() {
+    boardTitleDropdown.classList.remove('open');
+    boardDetailNameBtn.classList.remove('open');
+  }
   const gridViewBtn = document.getElementById('gridViewBtn');
   const boardsViewBtn = document.getElementById('boardsViewBtn');
   const shuffleBtn = document.getElementById('shuffleBtn');
@@ -1467,6 +1543,7 @@
   // ===== View switching =====
   function switchView(view) {
     currentView = view;
+    closeBoardTitleDropdown(); // don't leave the menu open when navigating away
     grid.classList.toggle('hidden', view !== 'grid');
     boardsView.classList.toggle('active', view === 'boards');
     boardDetailView.classList.toggle('active', view === 'board-detail');
@@ -1855,6 +1932,7 @@
 
   // ===== Rename board =====
   renameBoardBtn.addEventListener('click', () => {
+    closeBoardTitleDropdown();
     renameBoardName.value = boardDetailName.textContent;
     renameBoardBackdrop.classList.add('open');
     setTimeout(() => renameBoardName.focus(), 50);
@@ -1877,6 +1955,7 @@
   // ===== Delete board =====
   // ⚠️ Deletes the board only — images are NOT deleted, just unassigned.
   deleteBoardBtn.addEventListener('click', async () => {
+    closeBoardTitleDropdown();
     const sure = confirm(`Delete "${boardDetailName.textContent}"? Images won't be deleted, just removed from this board.`);
     if (!sure) return;
     await fetch('/api/boards-manage', {
