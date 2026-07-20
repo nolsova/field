@@ -52,6 +52,15 @@
     .filter-btn { padding: 5px 8px; font-size: 12px; }
     .logo { font-size: 11px; }
     .icon-btn { width: 28px; height: 28px; font-size: 16px; }
+
+    /* The "connect your phone" icon only makes sense on a LAPTOP — it
+       shows a QR code so a separate phone can find this computer. On an
+       actual phone, opening Field already means you're connected, so the
+       icon is dead weight taking up header space. !important is needed
+       because detectLocalEdition() sets this element's display via
+       inline style in JS, which would otherwise win over a plain CSS rule
+       regardless of this media query. */
+    #phoneAccessBtn { display: none !important; }
   }
 
   .logo { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-dim); }
@@ -79,6 +88,31 @@
     padding: 1px 6px;
     font-weight: 600;
   }
+
+  .icon-btn.has-active { border-color: var(--accent); color: var(--accent); }
+
+  /* Tab switcher at the top of the filter/tags panel — lets you jump
+     between the two without closing and reopening from the header. */
+  .filter-tags-tabs {
+    display: flex;
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 3px;
+    margin-bottom: 14px;
+    gap: 2px;
+  }
+  .filter-tags-tab {
+    flex: 1;
+    padding: 7px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .filter-tags-tab.active { background: var(--accent); color: var(--bg); }
 
   .icon-btn {
     width: 32px;
@@ -943,11 +977,10 @@
     <rect x="46" y="78" width="28" height="53" rx="5" fill="#D4CFC4"/>
   </svg>
   <span class="logo">field</span>
-  <button class="filter-btn" id="filterBtnTop">
-    <span>filter</span>
-    <span class="filter-count" id="filterCount" style="display:none;"></span>
+  <button class="icon-btn" id="filterTagsBtn" title="filter and tags" style="position:relative;">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+    <span class="filter-count" id="filterCount" style="display:none; position:absolute; top:-4px; right:-4px;"></span>
   </button>
-  <button class="filter-btn" id="tagsBtnTop">tags</button>
   <div class="view-toggle">
     <button class="active" id="gridViewBtn" title="grid view">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="0" y="0" width="4.5" height="4.5" rx="1"/><rect x="5.75" y="0" width="4.5" height="4.5" rx="1"/><rect x="11.5" y="0" width="4.5" height="4.5" rx="1"/><rect x="0" y="5.75" width="4.5" height="4.5" rx="1"/><rect x="5.75" y="5.75" width="4.5" height="4.5" rx="1"/><rect x="11.5" y="5.75" width="4.5" height="4.5" rx="1"/><rect x="0" y="11.5" width="4.5" height="4.5" rx="1"/><rect x="5.75" y="11.5" width="4.5" height="4.5" rx="1"/><rect x="11.5" y="11.5" width="4.5" height="4.5" rx="1"/></svg>
@@ -1078,7 +1111,10 @@
 <!-- Filter panel -->
 <div class="backdrop" id="filterBackdrop">
   <div class="panel" style="max-width:480px; max-height:90vh;">
-    <h3>filter by tag</h3>
+    <div class="filter-tags-tabs">
+      <button class="filter-tags-tab active" id="tabToFilter">filter</button>
+      <button class="filter-tags-tab" id="tabToTags">tags</button>
+    </div>
     <input type="text" id="filterSearch" placeholder="search tags…" style="margin-bottom:10px;" />
     <div class="chip-input" id="filterChipDisplay" style="cursor:default; min-height:0; padding:0; border:none; margin-bottom:8px;"></div>
     <div id="filterTagList" class="filter-tag-cloud"></div>
@@ -1096,6 +1132,10 @@
 <!-- Tags panel -->
 <div class="backdrop" id="tagsBackdrop">
   <div class="panel" style="max-width:520px; max-height:90vh;">
+    <div class="filter-tags-tabs">
+      <button class="filter-tags-tab" id="tabToFilter2">filter</button>
+      <button class="filter-tags-tab active" id="tabToTags2">tags</button>
+    </div>
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
       <h3 style="margin:0;">all tags</h3>
       <div style="display:flex; gap:6px;">
@@ -1251,10 +1291,13 @@
   const uploadStatus = document.getElementById('uploadStatus');
   const uploadBoardOptions = document.getElementById('uploadBoardOptions');
   const filterBackdrop = document.getElementById('filterBackdrop');
-  const filterBtnTop = document.getElementById('filterBtnTop');
+  const filterTagsBtn = document.getElementById('filterTagsBtn');
+  const tabToFilter = document.getElementById('tabToFilter');
+  const tabToTags = document.getElementById('tabToTags');
+  const tabToFilter2 = document.getElementById('tabToFilter2');
+  const tabToTags2 = document.getElementById('tabToTags2');
   const filterSearch = document.getElementById('filterSearch');
   const tagsBackdrop = document.getElementById('tagsBackdrop');
-  const tagsBtnTop = document.getElementById('tagsBtnTop');
   const tagsListContainer = document.getElementById('tagsListContainer');
   const tagSortCount = document.getElementById('tagSortCount');
   const tagSortAlpha = document.getElementById('tagSortAlpha');
@@ -1812,21 +1855,49 @@
 
   function updateFilterButton() {
     const hasActive = activeFilters.size > 0 || activeLocationFilter;
-    filterBtnTop.classList.toggle('has-active', !!hasActive);
+    filterTagsBtn.classList.toggle('has-active', !!hasActive);
     const count = activeFilters.size + (activeLocationFilter ? 1 : 0);
     filterCount.style.display = count > 0 ? 'inline-block' : 'none';
     filterCount.textContent = count;
   }
 
-  filterBtnTop.addEventListener('click', async () => {
+  // Opens the filter pane. Used by the header icon (always starts here)
+  // and by the "filter" tab inside the tags pane (switches over without
+  // closing and reopening from scratch).
+  async function openFilterPane({ focus = true } = {}) {
+    tagsBackdrop.classList.remove('open');
     await Promise.all([loadTagsData(), loadLocations()]);
     filterSearch.value = '';
     renderFilterList();
     renderFilterChips();
     renderFilterLocations();
     filterBackdrop.classList.add('open');
-    setTimeout(() => filterSearch.focus(), 50);
-  });
+    [tabToFilter, tabToFilter2].forEach((el) => el.classList.add('active'));
+    [tabToTags, tabToTags2].forEach((el) => el.classList.remove('active'));
+    if (focus) setTimeout(() => filterSearch.focus(), 50);
+  }
+
+  // Opens the tags pane. Used by the header icon's tab bar switch and by
+  // the "tags" tab inside the filter pane.
+  async function openTagsPane() {
+    filterBackdrop.classList.remove('open');
+    await loadTagsData();
+    renderTagsList();
+    tagsBackdrop.classList.add('open');
+    [tabToTags, tabToTags2].forEach((el) => el.classList.add('active'));
+    [tabToFilter, tabToFilter2].forEach((el) => el.classList.remove('active'));
+  }
+
+  // The single header icon always opens on the filter pane by default —
+  // from there, the tab bar at the top lets you jump to tags without
+  // closing and reopening.
+  filterTagsBtn.addEventListener('click', () => openFilterPane());
+
+  tabToTags.addEventListener('click', () => openTagsPane());
+  tabToTags2.addEventListener('click', () => openTagsPane());
+  tabToFilter.addEventListener('click', () => openFilterPane({ focus: false }));
+  tabToFilter2.addEventListener('click', () => openFilterPane({ focus: false }));
+
   filterBackdrop.addEventListener('click', (e) => { if (e.target === filterBackdrop) filterBackdrop.classList.remove('open'); });
   clearFilters.addEventListener('click', () => { activeFilters.clear(); activeLocationFilter = null; renderFilterList(filterSearch.value); renderFilterChips(); renderFilterLocations(); });
   applyFilters.addEventListener('click', () => { filterBackdrop.classList.remove('open'); updateFilterButton(); viewerIndex = 0; loadImages(); });
@@ -1857,12 +1928,6 @@
   // ===== Tags panel =====
   let allTagsData = [];   // { name, count } from /api/tags
   let tagSortMode = 'count'; // 'count' | 'alpha'
-
-  tagsBtnTop.addEventListener('click', async () => {
-    await loadTagsData();
-    renderTagsList();
-    tagsBackdrop.classList.add('open');
-  });
 
   closeTagsPanel.addEventListener('click', () => tagsBackdrop.classList.remove('open'));
   tagsBackdrop.addEventListener('click', (e) => { if (e.target === tagsBackdrop) tagsBackdrop.classList.remove('open'); });
