@@ -70,7 +70,13 @@ export async function onRequestGet(context) {
           ...img,
           tags: tagRows.results.map((t) => t.name),
           boards: boardRows.results.map((b) => b.board_id),
-          url: `/api/file/${img.r2_key}`,
+          // ?v= ties the URL to the file's last-changed time. [key].js
+          // caches images for a full year with "immutable" — safe and
+          // correct ONLY because this version tag guarantees a URL never
+          // gets reused for different bytes. Without it, a cropped image
+          // (same r2_key, new bytes) would keep serving the browser's
+          // year-old cached copy of the original forever.
+          url: `/api/file/${img.r2_key}?v=${img.updated_at || img.uploaded_at}`,
         };
       })
     );

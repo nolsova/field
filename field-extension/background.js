@@ -47,17 +47,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // If that's blocked (cross-origin restriction, 403, etc.), falls back to
 // capturing a screenshot of the tab and cropping it to the image's area.
 async function saveImageFromUrl({ imageUrl, pageUrl, pageTitle, tags, notes, rect, tabId }) {
-  const { moodboardUrl, apiKey, accessClientId, accessClientSecret } = await chrome.storage.local.get([
+  const { mode, moodboardUrl, apiKey, accessClientId, accessClientSecret } = await chrome.storage.local.get([
+    "mode",
     "moodboardUrl",
     "apiKey",
     "accessClientId",
     "accessClientSecret",
   ]);
+  // Anyone who saved settings before "mode" existed is implicitly cloud —
+  // matches the same default used in options.js.
+  const effectiveMode = mode === "local" ? "local" : "cloud";
 
-  // The site sits behind Cloudflare Access now, so the extension needs its
-  // own service token (separate from the human email-login flow) to get
-  // past the Access wall before the MOODBOARD_API_KEY check even runs.
-  if (!moodboardUrl || !apiKey || !accessClientId || !accessClientSecret) {
+  // In LOCAL mode, only the URL is required — a server that only listens
+  // on someone's own WiFi has no strangers to defend against, so there's
+  // no key or Access token to check for. In CLOUD mode, the site sits
+  // behind Cloudflare Access, so the extension needs its own service
+  // token (separate from the human email-login flow) plus the API key.
+  const configured = effectiveMode === "local"
+    ? Boolean(moodboardUrl)
+    : Boolean(moodboardUrl && apiKey && accessClientId && accessClientSecret);
+
+  if (!configured) {
     chrome.runtime.openOptionsPage();
     return { error: "Not configured" };
   }
@@ -113,11 +123,13 @@ async function saveImageFromUrl({ imageUrl, pageUrl, pageTitle, tags, notes, rec
   const uploadUrl = moodboardUrl.replace(/\/$/, "") + "/api/upload";
   const res = await fetch(uploadUrl, {
     method: "POST",
-    headers: {
-      "x-api-key": apiKey,
-      "CF-Access-Client-Id": accessClientId,
-      "CF-Access-Client-Secret": accessClientSecret,
-    },
+    headers: effectiveMode === "cloud"
+      ? {
+          "x-api-key": apiKey,
+          "CF-Access-Client-Id": accessClientId,
+          "CF-Access-Client-Secret": accessClientSecret,
+        }
+      : {}, // local mode: no auth of any kind needed
     body: formData,
   });
 

@@ -14,12 +14,24 @@
 //        - The cropped file then OVERWRITES the image's normal r2_key.
 //          Because the key doesn't change, everything else (grid, viewer,
 //          boards, the homepage integration) keeps working untouched.
+//        - updated_at is bumped — see the note below on why this matters.
 //
 //   2. REVERT TO ORIGINAL — sent as JSON with:
 //        { "id": "...", "revert": true }
 //      What happens:
 //        - The backup file is copied back over the normal r2_key,
 //          the backup is deleted, and the database column is cleared.
+//        - updated_at is bumped here too.
+//
+// Why updated_at matters (fixed after the original build of this file):
+// images.js builds each image's URL as /api/file/<key>?v=<updated_at>, and
+// [key].js caches image responses for a full year as "immutable". Without
+// updated_at changing here, a crop would overwrite the file on the server
+// correctly, but every browser that had already loaded this image would
+// keep confidently serving its old cached (pre-crop) copy from that same
+// URL — appearing as if the crop "didn't save," even though it had.
+// Bumping updated_at changes the URL, which is the only way to tell a
+// browser "this really is different content now, go fetch it again."
 //
 // Auth: same x-api-key check as upload.js — the key lives in
 // Cloudflare's encrypted secrets (env.MOODBOARD_API_KEY).
@@ -68,11 +80,12 @@ export async function onRequestPost(context) {
         httpMetadata: backup.httpMetadata,
       });
 
-      // ...delete the backup and clear the column.
+      // ...delete the backup, clear the column, and bump updated_at so
+      // the URL changes back away from the cropped version's ?v=.
       await env.IMAGES_BUCKET.delete(row.original_r2_key);
       await env.DB.prepare(
-        `UPDATE images SET original_r2_key = NULL WHERE id = ?`
-      ).bind(id).run();
+        `UPDATE images SET original_r2_key = NULL, updated_at = ? WHERE id = ?`
+      ).bind(Date.now(), id).run();
 
       return json({ success: true, reverted: true });
     }
@@ -112,6 +125,13 @@ export async function onRequestPost(context) {
     await env.IMAGES_BUCKET.put(row.r2_key, file.stream(), {
       httpMetadata: { contentType: file.type },
     });
+
+    // The actual fix: bump updated_at so images.js builds a fresh ?v=
+    // for this image on the next fetch, forcing browsers past their
+    // year-long cache instead of silently reusing the pre-crop bytes.
+    await env.DB.prepare(
+      `UPDATE images SET updated_at = ? WHERE id = ?`
+    ).bind(Date.now(), id).run();
 
     return json({ success: true, cropped: true });
   } catch (err) {

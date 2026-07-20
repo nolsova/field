@@ -818,6 +818,110 @@
 
   .crop-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
   #cropStatus { font-size: 13px; color: var(--text-dim); min-height: 18px; text-align: center; }
+  /* ===== First-run setup ===== =====
+     Only ever shown by the LOCAL edition — the cloud version has no
+     /api/setup route, so the frontend never triggers this overlay there. */
+  .setup-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 300; /* above everything, including the crop overlay */
+    background: #0c0c0d;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .setup-backdrop.open { display: flex; }
+
+  .setup-inner { width: 100%; max-width: 560px; text-align: center; }
+
+  .setup-logo { margin-bottom: 20px; }
+
+  .setup-title {
+    font-size: 15px;
+    font-weight: 400;
+    letter-spacing: 0.06em;
+    text-transform: lowercase;
+    color: var(--text-dim);
+    margin: 0 0 8px;
+  }
+
+  .setup-tagline {
+    font-size: 22px;
+    font-weight: 400;
+    color: var(--text);
+    margin: 0 0 40px;
+    line-height: 1.4;
+  }
+
+  .setup-cards {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    text-align: left;
+  }
+  @media (min-width: 560px) {
+    .setup-cards { grid-template-columns: 1fr 1fr 1fr; }
+  }
+
+  .setup-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 16px;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .setup-card:hover { border-color: var(--accent); }
+  .setup-card.disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+  .setup-card.disabled:hover { border-color: var(--border); }
+
+  /* Marks whichever card matches the currently saved mode — only ever
+     applied when the picker is reopened via the gear icon, never on
+     first run (since no choice has been made yet). */
+  .setup-card.selected { border-color: var(--accent); }
+  .setup-card-current {
+    display: none;
+    align-self: flex-start;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-top: 2px;
+  }
+  .setup-card.selected .setup-card-current { display: block; }
+
+  .setup-card-title { font-size: 14px; color: var(--text); font-weight: 500; }
+  .setup-card-desc { font-size: 12px; color: var(--text-dim); line-height: 1.5; }
+  .setup-card-badge {
+    align-self: flex-start;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 2px 8px;
+    margin-top: 2px;
+  }
+
+  .setup-footnote {
+    margin-top: 28px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  /* The gear icon and phone/QR shortcut only render when the frontend has
+     confirmed it's talking to the local edition (see detectLocalEdition). */
+  #settingsBtn, #phoneAccessBtn { display: none; }
 </style>
 </head>
 <body>
@@ -847,11 +951,60 @@
     </button>
   </div>
   <div class="spacer"></div>
+  <!-- Local-edition-only controls. Hidden by CSS default; JS reveals them
+       after confirming /api/setup exists (see detectLocalEdition). -->
+  <button class="icon-btn" id="phoneAccessBtn" title="connect your phone">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+  </button>
+  <button class="icon-btn" id="settingsBtn" title="field settings">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+  </button>
   <button class="icon-btn" id="shuffleBtn" title="shuffle">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
   </button>
   <button class="icon-btn" id="openUpload">+</button>
 </header>
+
+<!-- First-run / settings overlay — LOCAL EDITION ONLY.
+     Shown automatically on first launch (before any settings exist), and
+     reopenable any time via the gear icon to change modes later. -->
+<div class="setup-backdrop" id="setupBackdrop">
+  <div class="setup-inner">
+    <div class="setup-logo">
+      <svg width="40" height="40" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin:0 auto;">
+        <path d="M156 0H44C19.6995 0 0 19.6995 0 44V156C0 180.301 19.6995 200 44 200H156C180.301 200 200 180.301 200 156V44C200 19.6995 180.301 0 156 0Z" fill="#0C0C0D"/>
+        <path d="M46 143C46 140.239 48.2386 138 51 138H108C110.761 138 113 140.239 113 143V171C113 173.761 110.761 176 108 176H51C48.2386 176 46 173.761 46 171V143Z" fill="#F6F5F3"/>
+        <rect x="80" y="78" width="32" height="53" rx="5" fill="#B2A995"/>
+        <rect x="118" y="78" width="48" height="26" rx="5" fill="#B2A995"/>
+        <rect x="80" y="31" width="86" height="40" rx="5" fill="#C94F0F"/>
+        <rect x="46" y="31" width="27.9699" height="40.0902" rx="5" fill="#D4CFC4"/>
+        <rect x="46" y="78" width="28" height="53" rx="5" fill="#D4CFC4"/>
+      </svg>
+    </div>
+    <p class="setup-title" id="setupTitle">field · local edition</p>
+    <h1 class="setup-tagline" id="setupTagline">How do you want to use field?</h1>
+    <div class="setup-cards">
+      <div class="setup-card" data-mode="laptop-only">
+        <span class="setup-card-title">just this laptop</span>
+        <span class="setup-card-desc">The simplest setup. Everything stays on this computer — nothing to configure.</span>
+        <span class="setup-card-current">✓ current</span>
+      </div>
+      <div class="setup-card" data-mode="laptop-phone">
+        <span class="setup-card-title">laptop + phone at home</span>
+        <span class="setup-card-desc">Browse and upload from your phone too, over the same WiFi, while this computer is on.</span>
+        <span class="setup-card-current">✓ current</span>
+      </div>
+      <div class="setup-card disabled" data-mode="anywhere">
+        <span class="setup-card-badge">coming soon</span>
+        <span class="setup-card-title">access from anywhere</span>
+        <span class="setup-card-desc">Reach your library away from home. Not available yet in this version.</span>
+      </div>
+    </div>
+    <p class="setup-footnote" id="setupFootnote">
+      You can change this anytime from the settings icon in the top right.
+    </p>
+  </div>
+</div>
 
 <!-- Grid view -->
 <main id="grid">
@@ -2444,6 +2597,100 @@
     renderViewerSlide();
   }
 
+  // ===== Local edition detection & first-run setup =====
+  // /api/setup only exists on the LOCAL server — the Cloudflare version has
+  // no such function deployed. So a successful response here is itself the
+  // signal "this is the local edition," used to reveal the settings/phone
+  // icons and to decide whether the first-run picker needs to appear.
+  const setupBackdrop = document.getElementById('setupBackdrop');
+  const setupTitle = document.getElementById('setupTitle');
+  const setupTagline = document.getElementById('setupTagline');
+  const setupFootnote = document.getElementById('setupFootnote');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const phoneAccessBtn = document.getElementById('phoneAccessBtn');
+  const setupCards = document.querySelectorAll('.setup-card');
+
+  let isLocalEdition = false;
+  let currentMode = null; // tracks the saved mode so settings can show it
+
+  async function detectLocalEdition() {
+    try {
+      const res = await fetch('/api/setup');
+      if (!res.ok) return; // cloud version (or an error) — stay hidden
+      isLocalEdition = true;
+      settingsBtn.style.display = 'flex';
+      phoneAccessBtn.style.display = 'flex';
+
+      const settings = await res.json();
+      currentMode = settings.mode;
+      if (!settings.setupComplete) {
+        openSetup({ firstRun: true });
+      }
+    } catch (err) {
+      // Network error reaching /api/setup — most likely the cloud version,
+      // which doesn't have this route at all. Nothing to do; stays hidden.
+    }
+  }
+
+  // firstRun=true: the full welcome screen, no way to dismiss without picking.
+  // firstRun=false: reopened later from the gear icon — same cards, but
+  // framed as "change your mode," dismissible by clicking outside, and
+  // with the currently-active mode visibly marked.
+  function openSetup({ firstRun }) {
+    setupTitle.textContent = firstRun ? 'field · local edition' : 'field settings';
+    setupTagline.textContent = firstRun ? 'How do you want to use field?' : 'Change how you use field';
+    setupFootnote.textContent = firstRun
+      ? 'You can change this anytime from the settings icon in the top right.'
+      : 'Click outside this card to cancel.';
+    setupBackdrop.dataset.dismissable = firstRun ? 'false' : 'true';
+
+    // Clear any previous mark, then mark whichever card matches the
+    // currently saved mode — nothing to mark on first run, since no
+    // choice has been made yet.
+    setupCards.forEach((card) => card.classList.remove('selected'));
+    if (!firstRun && currentMode) {
+      const activeCard = document.querySelector(`.setup-card[data-mode="${currentMode}"]`);
+      if (activeCard) activeCard.classList.add('selected');
+    }
+
+    setupBackdrop.classList.add('open');
+  }
+
+  function closeSetup() { setupBackdrop.classList.remove('open'); }
+
+  setupCards.forEach((card) => {
+    card.addEventListener('click', async () => {
+      if (card.classList.contains('disabled')) return; // "coming soon" card
+      const mode = card.dataset.mode;
+      try {
+        await fetch('/api/setup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode }),
+        });
+        currentMode = mode; // keep in sync so reopening settings shows it correctly
+      } catch (err) {
+        console.warn('Could not save setup mode', err);
+      }
+      closeSetup();
+    });
+  });
+
+  // Clicking the dark backdrop (not a card) only closes the overlay when
+  // it was reopened as "settings" — first-run always requires a real choice.
+  setupBackdrop.addEventListener('click', (e) => {
+    if (e.target === setupBackdrop && setupBackdrop.dataset.dismissable === 'true') {
+      closeSetup();
+    }
+  });
+
+  settingsBtn.addEventListener('click', () => openSetup({ firstRun: false }));
+
+  // Opens the QR / connect-your-phone page in a new tab. That page is
+  // served directly by the local server (see server.js), not part of
+  // this frontend file.
+  phoneAccessBtn.addEventListener('click', () => window.open('/connect', '_blank'));
+
   // Also pass board assignments on upload — update upload.js handles the boards field.
   // We also need to handle the boards field in upload.js, which currently ignores it.
   // That's handled in the updated upload.js included in this release.
@@ -2457,6 +2704,9 @@
     } catch (err) {
       console.warn('Could not fetch API key');
     }
+    // Local-only: reveals settings/phone icons and shows the first-run
+    // picker if setup hasn't happened yet. No-ops entirely on Cloudflare.
+    await detectLocalEdition();
     // Load boards first so allBoards is populated before any image
     // viewer opens — the board selector pills depend on allBoards being
     // ready, and a race condition was leaving it empty on first load.

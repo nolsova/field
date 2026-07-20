@@ -26,9 +26,19 @@ settingsBtn.addEventListener('click', () => {
 });
 
 // --- Check extension is configured before doing anything else ---
+// What "configured" means depends on the saved mode:
+//   local  — only a URL is needed, nothing to authenticate against
+//   cloud  — URL + API key + Access service token, same as before
+// Anyone who saved settings before "mode" existed is implicitly cloud —
+// matches the same default used in options.js and background.js.
 async function checkConfig() {
-  const { moodboardUrl, apiKey } = await chrome.storage.local.get(['moodboardUrl', 'apiKey']);
-  if (!moodboardUrl || !apiKey) {
+  const { mode, moodboardUrl, apiKey } = await chrome.storage.local.get(['mode', 'moodboardUrl', 'apiKey']);
+  const effectiveMode = mode === 'local' ? 'local' : 'cloud';
+  const configured = effectiveMode === 'local'
+    ? Boolean(moodboardUrl)
+    : Boolean(moodboardUrl && apiKey);
+
+  if (!configured) {
     stateMsg.innerHTML = 'Extension not set up yet.<br><br><a href="#" id="openSettings" style="color: #d4cfc4;">Open settings →</a>';
     document.getElementById('openSettings')?.addEventListener('click', (e) => {
       e.preventDefault();
