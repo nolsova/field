@@ -51,35 +51,44 @@ export async function onRequestGet(context) {
       ).all();
     }
 
-    // For each image, also fetch its tags and board memberships so the
-    // frontend doesn't need extra round-trips per image.
-    const results = await Promise.all(
-      images.results.map(async (img) => {
-        const [tagRows, boardRows] = await Promise.all([
-          env.DB.prepare(
-            `SELECT tags.name FROM tags
-             JOIN image_tags ON tags.id = image_tags.tag_id
-             WHERE image_tags.image_id = ?`
-          ).bind(img.id).all(),
-          env.DB.prepare(
-            `SELECT board_id FROM image_boards WHERE image_id = ?`
-          ).bind(img.id).all(),
-        ]);
+    // Fetch ALL tag links and board links in just two queries (instead of
+    // two queries per image), then group them by image id in memory.
+    // Workers limit how many subrequests (including D1 queries) one request
+    // can make, so a per-image loop breaks as the library grows.
+    const [tagLinks, boardLinks] = await Promise.all([
+      env.DB.prepare(
+        `SELECT image_tags.image_id, tags.name FROM image_tags
+         JOIN tags ON tags.id = image_tags.tag_id`
+      ).all(),
+      env.DB.prepare(
+        `SELECT image_id, board_id FROM image_boards`
+      ).all(),
+    ]);
 
-        return {
-          ...img,
-          tags: tagRows.results.map((t) => t.name),
-          boards: boardRows.results.map((b) => b.board_id),
-          // ?v= ties the URL to the file's last-changed time. [key].js
-          // caches images for a full year with "immutable" — safe and
-          // correct ONLY because this version tag guarantees a URL never
-          // gets reused for different bytes. Without it, a cropped image
-          // (same r2_key, new bytes) would keep serving the browser's
-          // year-old cached copy of the original forever.
-          url: `/api/file/${img.r2_key}?v=${img.updated_at || img.uploaded_at}`,
-        };
-      })
-    );
+    const tagsByImage = new Map();
+    for (const row of tagLinks.results) {
+      if (!tagsByImage.has(row.image_id)) tagsByImage.set(row.image_id, []);
+      tagsByImage.get(row.image_id).push(row.name);
+    }
+
+    const boardsByImage = new Map();
+    for (const row of boardLinks.results) {
+      if (!boardsByImage.has(row.image_id)) boardsByImage.set(row.image_id, []);
+      boardsByImage.get(row.image_id).push(row.board_id);
+    }
+
+    const results = images.results.map((img) => ({
+      ...img,
+      tags: tagsByImage.get(img.id) || [],
+      boards: boardsByImage.get(img.id) || [],
+      // ?v= ties the URL to the file's last-changed time. [key].js
+      // caches images for a full year with "immutable" — safe and
+      // correct ONLY because this version tag guarantees a URL never
+      // gets reused for different bytes. Without it, a cropped image
+      // (same r2_key, new bytes) would keep serving the browser's
+      // year-old cached copy of the original forever.
+      url: `/api/file/${img.r2_key}?v=${img.updated_at || img.uploaded_at}`,
+    }));
 
     return new Response(JSON.stringify({ images: results }), {
       status: 200,
